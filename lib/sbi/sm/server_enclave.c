@@ -4,6 +4,7 @@
 #include "sm/enclave_mm.h"
 #include "sm/server_enclave.h"
 #include "sm/ipi.h"
+#include "sbi/sbi_string.h"
 
 struct link_mem_t* server_enclave_head = NULL;
 struct link_mem_t* server_enclave_tail = NULL;
@@ -108,6 +109,41 @@ failed:
     sbi_memset((void*)server_enclave, 0, sizeof(struct server_enclave_t));
 
   return NULL;
+}
+
+/**
+ * \brief Get the server enclav by eid.
+ *
+ * \param eid The server enclave id.
+ */
+static struct server_enclave_t* __get_server_enclave(int eid)
+{
+  struct link_mem_t *cur;
+  struct server_enclave_t *server_enclave;
+  int found;
+
+  found = 0;
+  for(cur = server_enclave_head; cur != NULL; cur = cur->next_link_mem)
+  {
+    for(int i=0; i < (cur->slab_num); ++i)
+    {
+      server_enclave = (struct server_enclave_t*)(cur->addr) + i;
+      if(server_enclave->entity && server_enclave->entity->eid == eid)
+      {
+        found = 1;
+        break;
+      }
+    }
+  }
+
+  //haven't alloc this eid 
+  if(!found)
+  {
+    sbi_bug("M mode: __get_server_enclave: haven't alloc this enclave:%d\r\n", eid);
+    server_enclave = NULL;
+  }
+
+  return server_enclave;
 }
 
 /**
@@ -287,7 +323,59 @@ failed:
   return ret;
 }
 
+/**
+ * \brief Destroy the server enclave if server enclave is not runnable.
+ *
+ * \param regs The host regs.
+ * \param eid The server enclave id.
+ */
+uintptr_t destroy_server_enclave(uintptr_t* regs, unsigned int eid)
+{
+  uintptr_t retval = 0;
+  struct enclave_t *enclave = NULL;
+  struct server_enclave_t *server_enclave = NULL;
+  struct pm_area_struct* pma = NULL;
+  int need_free_enclave_memory = 0;
 
+  acquire_enclave_metadata_lock();
+
+  server_enclave = __get_server_enclave(eid);
+  if(!server_enclave)
+  {
+    sbi_bug("M mode: destroy_server_enclave: server%d is not found\r\n", eid);
+    retval = -1UL;
+    goto out;
+  }
+  enclave = server_enclave->entity;
+  if(!enclave || enclave->state < FRESH)
+  {
+    sbi_bug("M mode: destroy_server_enclave: server%d can not be accessed\r\n", eid);
+    retval = -1UL;
+    goto out;
+  }
+  sbi_memset((void*)server_enclave, 0, sizeof(struct server_enclave_t));
+
+  if(enclave->state != RUNNING)
+  {
+    pma = enclave->pma_list;
+    need_free_enclave_memory = 1;
+    __free_enclave(eid);
+  }
+  else
+  {
+    //TODO: use ipi to stop the server enclave
+    sbi_bug("M mode: destroy_server_enclave: server enclave is running, can not destroy\n");
+  }
+
+out:
+  release_enclave_metadata_lock();
+  if(need_free_enclave_memory)
+  {
+    free_enclave_memory(pma);
+  }
+
+  return retval;
+}
 /**************************************************************/
 /*                   called by enclave                        */
 /**************************************************************/
