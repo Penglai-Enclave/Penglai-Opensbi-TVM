@@ -26,14 +26,14 @@ do { \
 	SBI_HARTMASK_INIT_EXCEPT(&(__p)->smask, (__src)); \
 } while (0)
 
-void set_ipi_destroy_enclave_and_sync(ulong host_ptbr, int enclave_id)
+void set_ipi_destroy_enclave_and_sync(u32 remote_hart, ulong host_ptbr, int enclave_id)
 {
   struct ipi_destroy_enclave_data_t ipi_destroy_enclave_data;
   u32 source_hart = current_hartid();
 
   //sync all other harts
   SBI_IPI_DESTROY_ENCLAVE_DATA_INIT(&ipi_destroy_enclave_data, host_ptbr, enclave_id, source_hart);
-  sbi_send_ipi_destroy_enclave(0xFFFFFFFF&(~(1<<source_hart)), 0, &ipi_destroy_enclave_data);
+  sbi_send_ipi_destroy_enclave((1<<remote_hart), 0, &ipi_destroy_enclave_data);
   return;
 }
 
@@ -64,7 +64,7 @@ static int sbi_update_ipi_destroy_enclave(struct sbi_scratch *scratch,
 
 	if (remote_hartid == curr_hartid) {
 		// update the ipi_destroy_enclave register locally
-		//TODO
+		// TODO
 		// ipi_destroy_enclave(regs, host_ptbr, enclave_id);
 		return -1;
 	}
@@ -106,7 +106,7 @@ int sbi_ipi_destroy_enclave_init(struct sbi_scratch *scratch, bool cold_boot)
 	unsigned long *ipi_destroy_enclave_sync;
 
 	if (cold_boot) {
-        //Define the ipi_destroy_enclave data offset in the scratch
+        // Define the ipi_destroy_enclave data offset in the scratch
 		ipi_destroy_enclave_data_offset = sbi_scratch_alloc_offset(sizeof(*ipi_destroy_enclavedata),
 							    "IPI_DESTROY_ENCLAVE_DATA");
 		if (!ipi_destroy_enclave_data_offset)
