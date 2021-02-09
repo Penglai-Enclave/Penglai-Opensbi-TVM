@@ -258,7 +258,16 @@ void sbi_trap_handler(struct sbi_trap_regs *regs)
 				sbi_timer_process();
 			break;
 		case IRQ_M_SOFT:
-			sbi_ipi_process();
+			if(check_in_enclave_world() < 0)
+			{
+				sbi_ipi_process();
+			}
+			else
+			{
+				sbi_ipi_process_in_enclave(regs);
+				regs->mepc = csr_read(CSR_MEPC);
+				regs->mstatus = csr_read(CSR_MSTATUS);
+			}
 			break;
 		default:
 			msg = "unhandled external interrupt";

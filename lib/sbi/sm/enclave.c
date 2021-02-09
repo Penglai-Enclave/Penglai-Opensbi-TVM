@@ -1,13 +1,13 @@
+#include "sbi/riscv_encoding.h"
+#include "sbi/sbi_math.h"
+#include "sbi/riscv_locks.h"
+#include "sbi/sbi_ipi_destroy_enclave.h"
 #include "sm/enclave.h"
 #include "sm/enclave_vm.h"
 #include "sm/enclave_mm.h"
 #include "sm/sm.h"
-#include "sbi/sbi_math.h"
-#include "sbi/riscv_locks.h"
 #include "sm/platform/pt_area/platform_thread.h"
 #include "sm/ipi.h"
-#include "sbi/riscv_encoding.h"
-#include <string.h>
 #include "sm/relay_page.h"
 
 int eapp_args = 0;
@@ -1841,6 +1841,61 @@ out:
   return retval;
 }
 
+/**
+ * \brief Host calls this function to destroy an existing enclave.
+ * 
+ * \param regs The host register context.
+ * \param eid Resume enclave id.
+ */
+uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
+{
+  uintptr_t retval = 0;
+  struct enclave_t *enclave = NULL;
+  uintptr_t dest_hart = 0;
+  struct pm_area_struct* pma = NULL;
+  int need_free_enclave_memory = 0;
+
+  acquire_enclave_metadata_lock();
+  sbi_debug("M mode: destroy enclave \n");
+
+  enclave = __get_enclave(eid);
+  if(!enclave || enclave->state < FRESH || enclave->type == SERVER_ENCLAVE)
+  {
+    sbi_bug("M mode: destroy_enclave: enclave%d can not be accessed\r\n", eid);
+    retval = -1UL;
+    goto destroy_enclave_out;
+  }
+
+  if(enclave->state != RUNNING)
+  {
+    pma = enclave->pma_list;
+    need_free_enclave_memory = 1;
+    __free_enclave(eid);
+  }
+  else
+  {
+    //cpus' state will be protected by enclave_metadata_lock
+    for(int i = 0; i < MAX_HARTS; ++i)
+    {
+      if(cpus[i].in_enclave && cpus[i].eid == eid)
+        dest_hart = i;
+    }
+    set_ipi_destroy_enclave_and_sync(dest_hart, csr_read(CSR_SATP), eid);
+  }
+
+destroy_enclave_out:
+  release_enclave_metadata_lock();
+
+  //should wait after release enclave_metadata_lock to avoid deadlock
+
+  if(need_free_enclave_memory)
+  {
+    free_enclave_memory(pma);
+  }
+
+  return retval;
+}
+
 /**************************************************************/
 /*                   called by enclave                        */
 /**************************************************************/
@@ -2470,6 +2525,63 @@ timer_irq_out:
   release_enclave_metadata_lock();
   retval = ENCLAVE_YIELD;
   return retval;
+}
+
+/**
+ * \brief IPI notifaction for destroy enclave.
+ * 
+ * \param regs The enclave register context.
+ * \param host_ptbr host ptbr register.
+ * \param eid The enclave id.
+ */
+uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid)
+{
+  uintptr_t ret = 0;
+  struct enclave_t* enclave = NULL;
+  struct pm_area_struct* pma = NULL;
+  int need_free_enclave_memory = 0;
+
+  acquire_enclave_metadata_lock();
+  sbi_debug("M mode: ipi_destroy_enclave %d\r\n", eid);
+  //printm("M mode: ipi_destroy_enclave %d\r\n", eid);
+
+  enclave = __get_enclave(eid);
+
+  //enclave may have exited or even assigned to other host
+  //after ipi sender release the enclave_metadata_lock
+  if(!enclave || enclave->state < FRESH)
+  {
+    ret = -1;
+    sbi_bug("M mode: ipi_stop_enclave: enclave is not existed!\r\n");
+    goto ipi_stop_enclave_out;
+  }
+
+  //this situation should never happen
+  if(enclave->state == RUNNING
+      && (check_in_enclave_world() < 0 || cpus[csr_read(CSR_MHARTID)].eid != eid))
+  {
+    sbi_bug("[ERROR] M mode: ipi_stop_enclave: this situation should never happen!\r\n");
+    ret = -1;
+    goto ipi_stop_enclave_out;
+  }
+
+  if(enclave->state == RUNNING)
+  {
+    swap_from_enclave_to_host(regs, enclave);
+    //regs[10] = ENCLAVE_DESTROYED;
+    regs[10] = 0;
+  }
+  pma = enclave->pma_list;
+  need_free_enclave_memory = 1;
+  __free_enclave(eid);
+
+ipi_stop_enclave_out:
+  release_enclave_metadata_lock();
+
+  if(need_free_enclave_memory)
+    free_enclave_memory(pma);
+
+  return ret;
 }
 
 /**

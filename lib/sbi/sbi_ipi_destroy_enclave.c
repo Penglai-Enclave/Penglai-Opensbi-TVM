@@ -15,6 +15,7 @@
 #include <sbi/sbi_console.h>
 #include <sbi/sbi_platform.h>
 #include <sbi/sbi_hartmask.h>
+#include <sm/enclave.h>
 
 static unsigned long ipi_destroy_enclave_data_offset;
 static unsigned long ipi_destroy_enclave_sync_offset;
@@ -37,14 +38,14 @@ void set_ipi_destroy_enclave_and_sync(u32 remote_hart, ulong host_ptbr, int encl
   return;
 }
 
-static void sbi_process_ipi_destroy_enclave(struct sbi_scratch *scratch)
+static void sbi_process_ipi_destroy_enclave(struct sbi_scratch *scratch, struct sbi_trap_regs* regs)
 {
 	struct ipi_destroy_enclave_data_t *data = sbi_scratch_offset_ptr(scratch, ipi_destroy_enclave_data_offset);
 	struct sbi_scratch *rscratch = NULL;
 	u32 rhartid;
 	unsigned long *ipi_destroy_enclave_sync = NULL;
 	//TODO
-	// ipi_destroy_enclave(regs, data->host_ptbr, data->enclave_id);
+	ipi_destroy_enclave((uintptr_t *)regs, data->host_ptbr, data->enclave_id);
 	//sync
 	sbi_hartmask_for_each_hart(rhartid, &data->smask) {
 		rscratch = sbi_hartid_to_scratch(rhartid);
@@ -89,7 +90,7 @@ static struct sbi_ipi_event_ops ipi_destroy_enclave_ops = {
 	.name = "IPI_DESTROY_ENCLAVE",
 	.update = sbi_update_ipi_destroy_enclave,
 	.sync = sbi_ipi_destroy_enclave_sync,
-	.process = sbi_process_ipi_destroy_enclave,
+	.e_process = sbi_process_ipi_destroy_enclave,
 };
 
 static u32 ipi_destroy_enclave_event = SBI_IPI_EVENT_MAX;

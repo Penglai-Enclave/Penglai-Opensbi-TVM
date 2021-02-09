@@ -54,6 +54,9 @@ static int sbi_ecall_penglai_handler(unsigned long extid, unsigned long funcid,
     case SBI_RESUME_ENCLAVE:
       retval = sm_resume_enclave(args, arg0);
       break;
+    case SBI_DESTROY_ENCLAVE:
+      retval = sm_destroy_enclave(args, arg0);
+      break;
     case SBI_CREATE_SERVER_ENCLAVE:
       retval = sm_create_server_enclave(arg0);
       break;

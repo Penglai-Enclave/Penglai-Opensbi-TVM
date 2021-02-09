@@ -1058,8 +1058,11 @@ uintptr_t sm_resume_enclave(uintptr_t* regs, uintptr_t eid)
 uintptr_t sm_destroy_enclave(uintptr_t *regs, uintptr_t enclave_id)
 {
   //TODO
+  uintptr_t ret = 0;
 
-  return 0;
+  ret = destroy_enclave(regs, enclave_id);
+
+  return ret;
 }
 
 /**************************************************************/
