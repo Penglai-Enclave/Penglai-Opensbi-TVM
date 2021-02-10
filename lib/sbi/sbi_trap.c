@@ -264,9 +264,12 @@ void sbi_trap_handler(struct sbi_trap_regs *regs)
 			}
 			else
 			{
+				//TODO: just consider the ipi for destroying the enclave
 				sbi_ipi_process_in_enclave(regs);
 				regs->mepc = csr_read(CSR_MEPC);
 				regs->mstatus = csr_read(CSR_MSTATUS);
+				regs->a0 = 0;
+				regs->a1 = 0;
 			}
 			break;
 		default:

@@ -220,7 +220,7 @@ void sbi_ipi_process_in_enclave(struct sbi_trap_regs* regs)
 			goto skip;
 
 		ipi_ops = ipi_ops_array[ipi_event];
-		if (ipi_ops && ipi_ops->process)
+		if (ipi_ops && ipi_ops->e_process)
 			ipi_ops->e_process(scratch, regs);
 
 skip:

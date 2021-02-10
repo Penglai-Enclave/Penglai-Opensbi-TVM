@@ -34,17 +34,16 @@ void set_ipi_destroy_enclave_and_sync(u32 remote_hart, ulong host_ptbr, int encl
 
   //sync all other harts
   SBI_IPI_DESTROY_ENCLAVE_DATA_INIT(&ipi_destroy_enclave_data, host_ptbr, enclave_id, source_hart);
-  sbi_send_ipi_destroy_enclave((1<<remote_hart), 0, &ipi_destroy_enclave_data);
+  sbi_send_ipi_destroy_enclave((0x1<<remote_hart), 0, &ipi_destroy_enclave_data);
   return;
 }
 
-static void sbi_process_ipi_destroy_enclave(struct sbi_scratch *scratch, struct sbi_trap_regs* regs)
+static void sbi_eprocess_ipi_destroy_enclave(struct sbi_scratch *scratch, struct sbi_trap_regs* regs)
 {
 	struct ipi_destroy_enclave_data_t *data = sbi_scratch_offset_ptr(scratch, ipi_destroy_enclave_data_offset);
 	struct sbi_scratch *rscratch = NULL;
 	u32 rhartid;
 	unsigned long *ipi_destroy_enclave_sync = NULL;
-	//TODO
 	ipi_destroy_enclave((uintptr_t *)regs, data->host_ptbr, data->enclave_id);
 	//sync
 	sbi_hartmask_for_each_hart(rhartid, &data->smask) {
@@ -56,6 +55,12 @@ static void sbi_process_ipi_destroy_enclave(struct sbi_scratch *scratch, struct 
 	}
 }
 
+static void sbi_process_ipi_destroy_enclave(struct sbi_scratch *scratch)
+{
+	sbi_bug("M mode: sbi_process_ipi_destroy_enclave error\n");
+	return;
+}
+
 static int sbi_update_ipi_destroy_enclave(struct sbi_scratch *scratch,
 			  struct sbi_scratch *remote_scratch,
 			  u32 remote_hartid, void *data)
@@ -64,9 +69,7 @@ static int sbi_update_ipi_destroy_enclave(struct sbi_scratch *scratch,
 	u32 curr_hartid = current_hartid();
 
 	if (remote_hartid == curr_hartid) {
-		// update the ipi_destroy_enclave register locally
-		// TODO
-		// ipi_destroy_enclave(regs, host_ptbr, enclave_id);
+		sbi_bug("M mode: sbi_update_ipi_destroy_enclave: remote_hartid is current hartid\n");
 		return -1;
 	}
 
@@ -90,7 +93,8 @@ static struct sbi_ipi_event_ops ipi_destroy_enclave_ops = {
 	.name = "IPI_DESTROY_ENCLAVE",
 	.update = sbi_update_ipi_destroy_enclave,
 	.sync = sbi_ipi_destroy_enclave_sync,
-	.e_process = sbi_process_ipi_destroy_enclave,
+	.process = sbi_process_ipi_destroy_enclave,
+	.e_process = sbi_eprocess_ipi_destroy_enclave,
 };
 
 static u32 ipi_destroy_enclave_event = SBI_IPI_EVENT_MAX;
@@ -103,12 +107,11 @@ int sbi_send_ipi_destroy_enclave(ulong hmask, ulong hbase, struct ipi_destroy_en
 int sbi_ipi_destroy_enclave_init(struct sbi_scratch *scratch, bool cold_boot)
 {
 	int ret;
-	struct ipi_destroy_enclave_data_t *ipi_destroy_enclavedata;
+	struct ipi_destroy_enclave_data_t *ipi_destroy_enclave_data;
 	unsigned long *ipi_destroy_enclave_sync;
-
 	if (cold_boot) {
         // Define the ipi_destroy_enclave data offset in the scratch
-		ipi_destroy_enclave_data_offset = sbi_scratch_alloc_offset(sizeof(*ipi_destroy_enclavedata),
+		ipi_destroy_enclave_data_offset = sbi_scratch_alloc_offset(sizeof(*ipi_destroy_enclave_data),
 							    "IPI_DESTROY_ENCLAVE_DATA");
 		if (!ipi_destroy_enclave_data_offset)
 			return SBI_ENOMEM;
@@ -118,7 +121,7 @@ int sbi_ipi_destroy_enclave_init(struct sbi_scratch *scratch, bool cold_boot)
 		if (!ipi_destroy_enclave_sync_offset)
 			return SBI_ENOMEM;
 
-		ipi_destroy_enclavedata = sbi_scratch_offset_ptr(scratch,
+		ipi_destroy_enclave_data = sbi_scratch_offset_ptr(scratch,
 						       ipi_destroy_enclave_data_offset);
 
 		ipi_destroy_enclave_sync = sbi_scratch_offset_ptr(scratch,
@@ -128,12 +131,12 @@ int sbi_ipi_destroy_enclave_init(struct sbi_scratch *scratch, bool cold_boot)
 
 		ret = sbi_ipi_event_create(&ipi_destroy_enclave_ops);
 		if (ret < 0) {
+			sbi_bug("M mode: sbi_ipi_destroy_enclave_init: init5\n");
 			sbi_scratch_free_offset(ipi_destroy_enclave_data_offset);
 			return ret;
 		}
 		ipi_destroy_enclave_event = ret;
 	} else {
 	}
-
 	return 0;
 }

@@ -1318,6 +1318,7 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
 
   //enable timer interrupt
   csr_read_set(CSR_MIE, MIP_MTIP);
+  csr_read_set(CSR_MIE, MIP_MSIP);
 
   //set default stack
   regs[2] = ENCLAVE_DEFAULT_STACK_BASE;
@@ -1548,6 +1549,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
 
   //enable timer interrupt
   csr_read_set(CSR_MIE, MIP_MTIP);
+  csr_read_set(CSR_MIE, MIP_MSIP);
 
   //set default stack
   regs[2] = ENCLAVE_DEFAULT_STACK;
@@ -1856,9 +1858,15 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
   int need_free_enclave_memory = 0;
 
   acquire_enclave_metadata_lock();
-  sbi_debug("M mode: destroy enclave \n");
 
   enclave = __get_enclave(eid);
+  unsigned long mm_arg_paddr[RELAY_PAGE_NUM];
+  unsigned long mm_arg_size[RELAY_PAGE_NUM];
+  for(int kk = 0; kk < RELAY_PAGE_NUM; kk++)
+  {
+    mm_arg_paddr[kk] = enclave->mm_arg_paddr[kk];
+    mm_arg_size[kk] = enclave->mm_arg_size[kk];
+  }
   if(!enclave || enclave->state < FRESH || enclave->type == SERVER_ENCLAVE)
   {
     sbi_bug("M mode: destroy_enclave: enclave%d can not be accessed\r\n", eid);
@@ -1887,10 +1895,18 @@ destroy_enclave_out:
   release_enclave_metadata_lock();
 
   //should wait after release enclave_metadata_lock to avoid deadlock
-
   if(need_free_enclave_memory)
   {
+    //TODO:
     free_enclave_memory(pma);
+    for(int kk = 0; kk < RELAY_PAGE_NUM; kk++)
+    {
+      if (mm_arg_paddr[kk])
+      {
+        __free_secure_memory(mm_arg_paddr[kk], mm_arg_size[kk]);
+        __free_relay_page_entry(mm_arg_paddr[kk], mm_arg_size[kk]);
+      }
+    }
   }
 
   return retval;
@@ -2283,6 +2299,7 @@ uintptr_t call_enclave(uintptr_t* regs, unsigned int callee_eid, uintptr_t arg)
 
   //enable timer interrupt
   csr_read_set(CSR_MIE, MIP_MTIP);
+  csr_read_set(CSR_MIE, MIP_MSIP);
 
   //set default stack
   regs[2] = ENCLAVE_DEFAULT_STACK_BASE;
@@ -2541,11 +2558,18 @@ uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid)
   struct pm_area_struct* pma = NULL;
   int need_free_enclave_memory = 0;
 
-  acquire_enclave_metadata_lock();
-  sbi_debug("M mode: ipi_destroy_enclave %d\r\n", eid);
-  //printm("M mode: ipi_destroy_enclave %d\r\n", eid);
+  // TODO acquire the enclave metadata lock
+  // acquire_enclave_metadata_lock();
+  // printm("M mode: ipi_destroy_enclave %d\r\n", eid);
 
   enclave = __get_enclave(eid);
+  unsigned long mm_arg_paddr[RELAY_PAGE_NUM];
+  unsigned long mm_arg_size[RELAY_PAGE_NUM];
+  for(int kk = 0; kk < RELAY_PAGE_NUM; kk++)
+  {
+    mm_arg_paddr[kk] = enclave->mm_arg_paddr[kk];
+    mm_arg_size[kk] = enclave->mm_arg_size[kk];
+  }
 
   //enclave may have exited or even assigned to other host
   //after ipi sender release the enclave_metadata_lock
@@ -2576,10 +2600,20 @@ uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid)
   __free_enclave(eid);
 
 ipi_stop_enclave_out:
-  release_enclave_metadata_lock();
+  // release_enclave_metadata_lock();
 
   if(need_free_enclave_memory)
+  {
     free_enclave_memory(pma);
+    for(int kk = 0; kk < RELAY_PAGE_NUM; kk++)
+    {
+      if (mm_arg_paddr[kk])
+      {
+        __free_secure_memory(mm_arg_paddr[kk], mm_arg_size[kk]);
+        __free_relay_page_entry(mm_arg_paddr[kk], mm_arg_size[kk]);
+      }
+    }
+  }
 
   return ret;
 }
