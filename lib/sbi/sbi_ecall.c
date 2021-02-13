@@ -141,7 +141,7 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 	regs->a0 = retval;
 	if (!cpu_in_enclave(csr_read(CSR_MHARTID)))
 	{
-		if ((retval >= 0) && (retval <= SBI_LEGAL_MAX))
+		if ((retval >= 0UL) && (retval <= SBI_LEGAL_MAX))
 		{
 			regs->a0 = SBI_OK;
 			regs->a1 = retval;
@@ -221,7 +221,7 @@ int sbi_ecall_handler(struct sbi_trap_regs *regs)
 			regs->a0 = out_val;
 			if (!cpu_in_enclave(csr_read(CSR_MHARTID)))
 			{
-				if ((out_val >= 0) && (out_val <= SBI_LEGAL_MAX))
+				if ((out_val >= 0UL) && (out_val <= SBI_LEGAL_MAX))
 				{
 					regs->a0 = SBI_OK;
 					regs->a1 = out_val;
