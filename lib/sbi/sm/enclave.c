@@ -1888,7 +1888,10 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
       if(cpus[i].in_enclave && cpus[i].eid == eid)
         dest_hart = i;
     }
-    set_ipi_destroy_enclave_and_sync(dest_hart, csr_read(CSR_SATP), eid);
+    if (dest_hart == csr_read(CSR_MHARTID))
+      ipi_destroy_enclave(regs, csr_read(CSR_SATP), eid);
+    else
+      set_ipi_destroy_enclave_and_sync(dest_hart, csr_read(CSR_SATP), eid);
   }
 
 destroy_enclave_out:
