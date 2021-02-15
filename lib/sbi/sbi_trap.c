@@ -268,8 +268,6 @@ void sbi_trap_handler(struct sbi_trap_regs *regs)
 				sbi_ipi_process_in_enclave(regs);
 				regs->mepc = csr_read(CSR_MEPC);
 				regs->mstatus = csr_read(CSR_MSTATUS);
-				regs->a0 = 0;
-				regs->a1 = 0;
 			}
 			break;
 		default:
@@ -314,7 +312,6 @@ void sbi_trap_handler(struct sbi_trap_regs *regs)
 		rc = sbi_trap_redirect(regs, &trap);
 		break;
 	};
-
 trap_error:
 	if (rc)
 		sbi_trap_error(msg, rc, mcause, mtval, mtval2, mtinst, regs);
