@@ -105,6 +105,8 @@ static struct server_enclave_t* __alloc_server_enclave(char *server_name)
 failed:
   if(enclave)
     __free_enclave(enclave->eid);
+  if(server_enclave == (void *)-1UL)
+    return (void *)-1UL;
   if(server_enclave)
     sbi_memset((void*)server_enclave, 0, sizeof(struct server_enclave_t));
 

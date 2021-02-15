@@ -52,7 +52,7 @@
 #define RESUME_FROM_OCALL        2
 
 
-#define SBI_LEGAL_MAX            100
+#define SBI_LEGAL_MAX            100UL
 //ENCLAVE_CALL NUMBERS
 #define SBI_EXIT_ENCLAVE         1
 #define SBI_ENCLAVE_OCALL        2
