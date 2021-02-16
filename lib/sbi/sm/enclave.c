@@ -1317,7 +1317,7 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
   csr_write(CSR_MEPC, (uintptr_t)(enclave->entry_point));
 
   //enable timer interrupt
-  // csr_read_set(CSR_MIE, MIP_MTIP);
+  csr_read_set(CSR_MIE, MIP_MTIP);
   csr_read_set(CSR_MIE, MIP_MSIP);
 
   //set default stack
@@ -1548,7 +1548,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
   csr_write(CSR_MEPC, (uintptr_t)(enclave->entry_point));
 
   //enable timer interrupt
-  // csr_read_set(CSR_MIE, MIP_MTIP);
+  csr_read_set(CSR_MIE, MIP_MTIP);
   csr_read_set(CSR_MIE, MIP_MSIP);
 
   //set default stack
@@ -2301,7 +2301,7 @@ uintptr_t call_enclave(uintptr_t* regs, unsigned int callee_eid, uintptr_t arg)
   csr_write(CSR_MEPC, (uintptr_t)(callee_enclave->entry_point));
 
   //enable timer interrupt
-  // csr_read_set(CSR_MIE, MIP_MTIP);
+  csr_read_set(CSR_MIE, MIP_MTIP);
   csr_read_set(CSR_MIE, MIP_MSIP);
 
   //set default stack
