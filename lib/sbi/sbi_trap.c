@@ -24,7 +24,7 @@
   asm volatile ("csrr %0, " #reg : "=r"(__tmp)); \
   __tmp; })
 
-static void __noreturn sbi_trap_error(const char *msg, int rc,
+static void sbi_trap_error(const char *msg, int rc,
 				      ulong mcause, ulong mtval, ulong mtval2,
 				      ulong mtinst, struct sbi_trap_regs *regs)
 {
@@ -73,7 +73,15 @@ static void __noreturn sbi_trap_error(const char *msg, int rc,
 	sbi_printf("%s: hart%d: %s=0x%" PRILX "\n", __func__, hartid, "t6",
 		   regs->t6);
 
+	if(check_in_enclave_world() == 0)
+	{
+		destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
+		regs->mepc = csr_read(CSR_MEPC);
+		regs->mstatus = csr_read(CSR_MSTATUS);
+		return;
+	}
 	sbi_hart_hang();
+	return;
 }
 
 /**
@@ -268,8 +276,6 @@ void sbi_trap_handler(struct sbi_trap_regs *regs)
 				sbi_ipi_process_in_enclave(regs);
 				regs->mepc = csr_read(CSR_MEPC);
 				regs->mstatus = csr_read(CSR_MSTATUS);
-				regs->a0 = 0;
-				regs->a1 = 0;
 			}
 			break;
 		default:
@@ -314,7 +320,7 @@ void sbi_trap_handler(struct sbi_trap_regs *regs)
 		rc = sbi_trap_redirect(regs, &trap);
 		break;
 	};
-
+	
 trap_error:
 	if (rc)
 		sbi_trap_error(msg, rc, mcause, mtval, mtval2, mtinst, regs);
