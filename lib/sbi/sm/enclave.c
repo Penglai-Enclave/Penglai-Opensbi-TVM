@@ -9,6 +9,7 @@
 #include "sm/platform/pt_area/platform_thread.h"
 #include "sm/ipi.h"
 #include "sm/relay_page.h"
+#include <sbi/sbi_tlb.h>
 
 int eapp_args = 0;
 
@@ -861,6 +862,17 @@ static int swap_from_enclave_to_host(uintptr_t* regs, struct enclave_t* enclave)
   return 0;
 }
 
+static inline int tlb_remote_sfence()
+{
+  int ret;
+  struct sbi_tlb_info tlb_info;
+	u32 source_hart = current_hartid();
+  SBI_TLB_INFO_INIT(&tlb_info, 0, 0, 0, 0,
+				  SBI_TLB_FLUSH_VMA, source_hart);
+	ret = sbi_tlb_request(0xFFFFFFFF&(~(1<<source_hart)), 0, &tlb_info);
+  return ret;
+}
+
 /**
  * \brief The auxiliary function for the enclave call.
  * 
@@ -1043,6 +1055,9 @@ uintptr_t create_enclave(struct enclave_create_param_t create_args)
     goto failed;
   }
 
+  //Sync and flush the remote TLB entry.
+  tlb_remote_sfence();
+
   enclave = __alloc_enclave();
   if(!enclave)
   {
@@ -1184,6 +1199,10 @@ uintptr_t create_shadow_enclave(struct enclave_create_param_t create_args)
     ret = ENCLAVE_ERROR;
     goto failed;
   }
+
+  //Sync and flush the remote TLB entry.
+  tlb_remote_sfence();
+
   need_free_secure_memory = 1;
   //check enclave memory layout
   if(check_enclave_layout(create_args.paddr + RISCV_PGSIZE, 0, -1UL, create_args.paddr, create_args.paddr + create_args.size) != 0)
@@ -1302,7 +1321,9 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
     enclave->mm_arg_size[0] = mm_arg_size;
     mmap_offset = mm_arg_size;
     mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_MM_ARG_BASE, mm_arg_addr, mm_arg_size);
-
+    
+    //Sync and flush the remote TLB entry.
+    tlb_remote_sfence();
   }
   //the relay page is transfered from another enclave
 
@@ -1373,6 +1394,9 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
     retval = ENCLAVE_ERROR;
     goto run_enclave_out;
   }
+
+  //Sync and flush the remote TLB entry.
+  tlb_remote_sfence();
  
   enclave->free_pages = NULL;
   enclave->free_pages_num = 0;
@@ -1671,6 +1695,10 @@ uintptr_t mmap_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintptr_
     retval = -1UL;
     return retval;
   }
+
+  //Sync and flush the remote TLB entry.
+  tlb_remote_sfence();
+
   struct pm_area_struct *pma = (struct pm_area_struct*)paddr;
   struct vm_area_struct *vma = (struct vm_area_struct*)(paddr + sizeof(struct pm_area_struct));
   pma->paddr = paddr;
@@ -1692,6 +1720,7 @@ uintptr_t mmap_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintptr_
   insert_pma(&(enclave->pma_list), pma);
   mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), vma->va_start, paddr+RISCV_PGSIZE, size-RISCV_PGSIZE);
   retval = vma->va_start;
+  
   return retval;
 }
 
@@ -1717,6 +1746,9 @@ uintptr_t sbrk_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintptr_
     return retval;
   }
 
+  //Sync and flush the remote TLB entry.
+  tlb_remote_sfence();
+  
   struct pm_area_struct *pma = (struct pm_area_struct*)paddr;
   struct vm_area_struct *vma = (struct vm_area_struct*)(paddr + sizeof(struct pm_area_struct));
   pma->paddr = paddr;
@@ -1771,6 +1803,9 @@ uintptr_t return_relay_page_after_resume(struct enclave_t *enclave, uintptr_t mm
     enclave->mm_arg_paddr[0] = mm_arg_addr;
     enclave->mm_arg_size[0] = mm_arg_size;
     mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_MM_ARG_BASE, mm_arg_addr, mm_arg_size);
+    
+    //Sync and flush the remote TLB entry.
+    tlb_remote_sfence();
   }
 run_enclave_out:
   return retval;
@@ -2310,6 +2345,7 @@ uintptr_t call_enclave(uintptr_t* regs, unsigned int callee_eid, uintptr_t arg)
   //map kbuffer
   mmap((uintptr_t*)(callee_enclave->root_page_table), &(callee_enclave->free_pages), ENCLAVE_DEFAULT_KBUFFER, top_caller_enclave->kbuffer, top_caller_enclave->kbuffer_size);
   //pass parameters
+  
   regs[10] = call_arg.req_arg;
   if(call_arg.req_vaddr == ENCLAVE_DEFAULT_MM_ARG_BASE)
     regs[11] = ENCLAVE_DEFAULT_MM_ARG_BASE;
