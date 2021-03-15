@@ -1018,6 +1018,35 @@ void free_enclave_memory(struct pm_area_struct *pma)
   spin_unlock(&mbitmap_lock);
 }
 
+void initilze_va_struct(struct pm_area_struct* pma, struct vm_area_struct* vma, struct enclave_t* enclave)
+{
+  pma->pm_next = NULL;
+  enclave->pma_list = pma;
+  traverse_vmas(enclave->root_page_table, vma);
+  //FIXME: here we assume there are exactly text(include text/data/bss) vma and stack vma
+  while(vma)
+  {
+    if(vma->va_start == ENCLAVE_DEFAULT_TEXT_BASE)
+    {
+      enclave->text_vma = vma;
+    }
+    if(vma->va_end == ENCLAVE_DEFAULT_STACK_BASE)
+    {
+      enclave->stack_vma = vma;
+      enclave->_stack_top = enclave->stack_vma->va_start;
+    }
+    vma->pma = pma;
+    vma = vma->vm_next;
+  }
+  if(enclave->text_vma)
+    enclave->text_vma->vm_next = NULL;
+  if(enclave->stack_vma)
+    enclave->stack_vma->vm_next = NULL;
+  enclave->_heap_top = ENCLAVE_DEFAULT_HEAP_BASE;
+  enclave->heap_vma = NULL;
+  enclave->mmap_vma = NULL;
+}
+
 /**************************************************************/
 /*                   called by host                           */
 /**************************************************************/
@@ -1100,31 +1129,8 @@ uintptr_t create_enclave(struct enclave_create_param_t create_args)
     sbi_bug("M mode: %s: pma free_mem is failed\n", __func__);
     goto failed;
   }
-  pma->pm_next = NULL;
-  enclave->pma_list = pma;
-  traverse_vmas(enclave->root_page_table, vma);
-  //FIXME: here we assume there are exactly text(include text/data/bss) vma and stack vma
-  while(vma)
-  {
-    if(vma->va_start == ENCLAVE_DEFAULT_TEXT_BASE)
-    {
-      enclave->text_vma = vma;
-    }
-    if(vma->va_end == ENCLAVE_DEFAULT_STACK_BASE)
-    {
-      enclave->stack_vma = vma;
-      enclave->_stack_top = enclave->stack_vma->va_start;
-    }
-    vma->pma = pma;
-    vma = vma->vm_next;
-  }
-  if(enclave->text_vma)
-    enclave->text_vma->vm_next = NULL;
-  if(enclave->stack_vma)
-    enclave->stack_vma->vm_next = NULL;
-  enclave->_heap_top = ENCLAVE_DEFAULT_HEAP_BASE;
-  enclave->heap_vma = NULL;
-  enclave->mmap_vma = NULL;
+
+  initilze_va_struct(pma, vma, enclave);
 
   enclave->free_pages = NULL;
   enclave->free_pages_num = 0;
@@ -1464,30 +1470,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
   pma->paddr = enclave_run_param.free_page;
   pma->size = enclave_run_param.size;
   pma->free_mem = enclave_run_param.free_page + 2*RISCV_PGSIZE;
-  pma->pm_next = NULL;
-  enclave->pma_list = pma;
-  traverse_vmas(enclave->root_page_table, vma);
-  while(vma)
-  {
-    if(vma->va_start == ENCLAVE_DEFAULT_TEXT_BASE)
-    {
-      enclave->text_vma = vma;
-    }
-    if(vma->va_end == ENCLAVE_DEFAULT_STACK_BASE)
-    {
-      enclave->stack_vma = vma;
-      enclave->_stack_top = enclave->stack_vma->va_start;
-    }
-    vma->pma = pma;
-    vma = vma->vm_next;
-  }
-  if(enclave->text_vma)
-    enclave->text_vma->vm_next = NULL;
-  if(enclave->stack_vma)
-    enclave->stack_vma->vm_next = NULL;
-  enclave->_heap_top = ENCLAVE_DEFAULT_HEAP_BASE;
-  enclave->heap_vma = NULL;
-  enclave->mmap_vma = NULL;
+  initilze_va_struct(pma, vma, enclave);
 
   if(enclave_run_param.kbuffer_size < RISCV_PGSIZE || enclave_run_param.kbuffer & (RISCV_PGSIZE-1) || enclave_run_param.kbuffer_size & (RISCV_PGSIZE-1))
   {
