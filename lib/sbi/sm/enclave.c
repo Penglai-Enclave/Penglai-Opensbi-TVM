@@ -1430,7 +1430,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
     retval = ENCLAVE_ERROR;
     goto run_enclave_out;
   }
-  copy_page_table_ret =  map_empty_page((uintptr_t*)(enclave_run_param.free_page + RISCV_PGSIZE), &(enclave->free_pages), ENCLAVE_DEFAULT_STACK-ENCLAVE_DEFAULT_STACK_SIZE, ENCLAVE_DEFAULT_STACK_SIZE);
+  copy_page_table_ret =  map_empty_page((uintptr_t*)(enclave_run_param.free_page + RISCV_PGSIZE), &(enclave->free_pages), ENCLAVE_DEFAULT_STACK_BASE-ENCLAVE_DEFAULT_STACK_SIZE, ENCLAVE_DEFAULT_STACK_SIZE);
   if (copy_page_table_ret < 0)
   {
     sbi_bug("alloc stack for shadow enclave fail\n");
@@ -1589,7 +1589,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
   csr_read_set(CSR_MIE, MIP_MSIP);
 
   //set default stack
-  regs[2] = ENCLAVE_DEFAULT_STACK;
+  regs[2] = ENCLAVE_DEFAULT_STACK_BASE;
 
   //pass parameters
   if(enclave->shm_paddr)
