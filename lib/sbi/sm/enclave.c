@@ -176,6 +176,7 @@ struct link_mem_t* init_mem_link(unsigned long mem_size, unsigned long slab_size
   if(resp_size <= sizeof(struct link_mem_t) + slab_size)
   {
     mm_free(head, resp_size);
+    sbi_debug("M mode: init_mem_link: The monitor has not reserved enough secure memory\n");
     return NULL;
   }
 
@@ -573,11 +574,10 @@ struct relay_page_entry_t* __alloc_relay_page_entry(char *enclave_name, unsigned
   if(relay_page_head == NULL)
   {
     relay_page_head = init_mem_link(sizeof(struct relay_page_entry_t)*ENTRY_PER_RELAY_PAGE_REGION, sizeof(struct relay_page_entry_t));
+    
     if(!relay_page_head)
-    {
-      sbi_bug("M mode: __alloc_relay_page_entry: init mem link is failed \n");
       goto failed;
-    }
+    
     relay_page_tail = relay_page_head;
   }
 
@@ -757,10 +757,13 @@ uintptr_t change_relay_page_ownership(unsigned long relay_page_addr, unsigned lo
     ret_val = -1;
     return ret_val;
   }
+
+  // This relay page entry allocation can not be failed
   if (__alloc_relay_page_entry(enclave_name, relay_page_addr, relay_page_size) == NULL)
   {
     sbi_bug("M mode: change_relay_page_ownership: can not alloc relay page entry, addr is %lx\n", relay_page_addr);
   }
+
   return ret_val;
 }
 
@@ -1126,6 +1129,8 @@ uintptr_t create_enclave(struct enclave_create_param_t create_args)
   enclave->free_pages = NULL;
   enclave->free_pages_num = 0;
   uintptr_t free_mem = create_args.paddr + create_args.size - RISCV_PGSIZE;
+
+  // Reserve the first two entries for free memory page
   while(free_mem >= create_args.free_mem)
   {
     struct page_t *page = (struct page_t*)free_mem;
@@ -1214,7 +1219,7 @@ uintptr_t create_shadow_enclave(struct enclave_create_param_t create_args)
   shadow_enclave = __alloc_shadow_enclave();
   if(!shadow_enclave)
   {
-    sbi_bug("M mode: create enclave: no enough memory to alloc_shadow_enclave\n");
+    sbi_bug("M mode: create shadow enclave: no enough memory to alloc_shadow_enclave\n");
     ret = ENCLAVE_NO_MEM;
     goto failed;
   }
@@ -1307,7 +1312,8 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
     }
     if (__alloc_relay_page_entry(enclave->enclave_name, mm_arg_addr, mm_arg_size) ==NULL)
     {
-      sbi_bug("M mode: run enclave: alloc relay page is failed \n");
+      sbi_printf("M mode: run enclave: lack of the secure memory for the relay page entries\n");
+      retval = ENCLAVE_NO_MEM;
       goto run_enclave_out;
     }
     //check the relay page is not mapping in other enclave, and unmap the relay page for host
@@ -1378,29 +1384,35 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
 {
   struct enclave_t* enclave;
   uintptr_t retval = 0;
-  acquire_enclave_metadata_lock();
   struct shadow_enclave_t* shadow_enclave;
   struct relay_page_entry_t* relay_page_entry;
+  int need_free_secure_memory = 0;
+  acquire_enclave_metadata_lock();
   shadow_enclave = __get_shadow_enclave(eid);
   enclave = __alloc_enclave();
+
   if(!enclave)
   {
     sbi_bug("create enclave from shadow enclave is failed\n");
     retval = ENCLAVE_NO_MEM;
     goto run_enclave_out;
   }
+
   if(check_and_set_secure_memory(enclave_run_param.free_page, enclave_run_param.size) != 0)
   {
     retval = ENCLAVE_ERROR;
     goto run_enclave_out;
   }
+  need_free_secure_memory = 1;
 
-  //Sync and flush the remote TLB entry.
+  // Sync and flush the remote TLB entry.
   tlb_remote_sfence();
- 
+
   enclave->free_pages = NULL;
   enclave->free_pages_num = 0;
   uintptr_t free_mem = enclave_run_param.free_page + enclave_run_param.size - 2*RISCV_PGSIZE;
+  
+  // Reserve the first two entries in the free pages
   while(free_mem >= enclave_run_param.free_page + 2*RISCV_PGSIZE)
   {
     struct page_t *page = (struct page_t*)free_mem;
@@ -1544,8 +1556,9 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
     }
     if (__alloc_relay_page_entry(enclave->enclave_name, mm_arg_addr, mm_arg_size) ==NULL)
     {
-      sbi_bug("M mode: run shadow enclave: alloc relay page is failed \n");
-      goto run_enclave_out;
+      sbi_printf("M mode: run shadow enclave: lack of the secure memory for the relay page entries\n");
+      retval = ENCLAVE_NO_MEM;
+      goto failed;
     }
     //check the relay page is not mapping in other enclave, and unmap the relay page for host
     if(check_and_set_secure_memory(mm_arg_addr, mm_arg_size) != 0)
@@ -1557,9 +1570,9 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
     enclave->mm_arg_size[0] = mm_arg_size;
     mmap_offset = mm_arg_size;
     mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_MM_ARG_BASE, mm_arg_addr, mm_arg_size);
-
   }
   //end map the relay page
+ 
 
   if(swap_from_host_to_enclave(regs, enclave) < 0)
   {
@@ -1595,7 +1608,21 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
 
   enclave->state = RUNNING;
   sbi_printf("M mode: run shadow enclave...\n");
+
 run_enclave_out:
+  release_enclave_metadata_lock();
+  return retval;
+
+failed:
+  if(need_free_secure_memory)
+  {
+    free_secure_memory(enclave_run_param.free_page, enclave_run_param.size);
+    sbi_memset((void *)enclave_run_param.free_page, 0, enclave_run_param.size);
+  }
+  
+  if(enclave)
+    __free_enclave(enclave->eid);
+  
   release_enclave_metadata_lock();
   return retval;
 }
@@ -1789,8 +1816,8 @@ uintptr_t return_relay_page_after_resume(struct enclave_t *enclave, uintptr_t mm
     }
     if (__alloc_relay_page_entry(enclave->enclave_name, mm_arg_addr, mm_arg_size) ==NULL)
     {
-      sbi_bug("M mode: run enclave: alloc relay page is failed \n");
-      retval = -1;
+      sbi_printf("M mode: run shadow enclave: lack of the secure memory for the relay page entries\n");
+      retval = ENCLAVE_NO_MEM;
       goto run_enclave_out;
     }
     //check the relay page is not mapping in other enclave, and unmap the relay page for host
