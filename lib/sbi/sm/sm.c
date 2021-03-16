@@ -961,15 +961,15 @@ uintptr_t sm_pt_area_separation(uintptr_t tmp_pgd_order, uintptr_t tmp_pmd_order
  */
 uintptr_t sm_create_enclave(uintptr_t enclave_sbi_param)
 {
-  struct enclave_create_param_t enclave_sbi_param_local;
+  enclave_create_param_t enclave_sbi_param_local;
   uintptr_t retval = 0;
   if(test_public_range(PADDR_TO_PFN(enclave_sbi_param),1) < 0){
     return ENCLAVE_ERROR;
   }
 
   retval = copy_from_host(&enclave_sbi_param_local,
-      (struct enclave_create_param_t*)enclave_sbi_param,
-      sizeof(struct enclave_create_param_t));
+      (enclave_create_param_t*)enclave_sbi_param,
+      sizeof(enclave_create_param_t));
   if(retval != 0)
     return ENCLAVE_ERROR;
 
@@ -1088,14 +1088,14 @@ uintptr_t sm_attest_shadow_enclave(uintptr_t eid, uintptr_t report, uintptr_t no
  */
 uintptr_t sm_create_shadow_enclave(uintptr_t enclave_sbi_param)
 {
-  struct enclave_create_param_t enclave_sbi_param_local;
+  enclave_create_param_t enclave_sbi_param_local;
   uintptr_t retval = 0;
   if(test_public_range(PADDR_TO_PFN(enclave_sbi_param),1) < 0){
     return ENCLAVE_ERROR;
   }
   retval = copy_from_host(&enclave_sbi_param_local,
-      (struct enclave_create_param_t*)enclave_sbi_param,
-      sizeof(struct enclave_create_param_t));
+      (enclave_create_param_t*)enclave_sbi_param,
+      sizeof(enclave_create_param_t));
   if(retval != 0)
     return ENCLAVE_ERROR;
 
@@ -1115,23 +1115,23 @@ uintptr_t sm_create_shadow_enclave(uintptr_t enclave_sbi_param)
  */
 uintptr_t sm_run_shadow_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t shadow_enclave_run_args, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
 {
-  struct shadow_enclave_run_param_t enclave_sbi_param_local;
+  shadow_enclave_run_param_t enclave_sbi_param_local;
   uintptr_t retval = 0;
   if(test_public_range(PADDR_TO_PFN(shadow_enclave_run_args), 1) < 0){
     return ENCLAVE_ERROR;
   }
   retval = copy_from_host(&enclave_sbi_param_local,
-      (struct shadow_enclave_run_param_t*)shadow_enclave_run_args,
-      sizeof(struct shadow_enclave_run_param_t));
+      (shadow_enclave_run_param_t*)shadow_enclave_run_args,
+      sizeof(shadow_enclave_run_param_t));
   if(retval != 0)
     return ENCLAVE_ERROR;
 
   retval = run_shadow_enclave(regs, (unsigned int)eid, enclave_sbi_param_local, mm_arg_addr, mm_arg_size);
   if (retval ==  ENCLAVE_ATTESTATION)
   {
-    copy_to_host((struct shadow_enclave_run_param_t*)shadow_enclave_run_args,
+    copy_to_host((shadow_enclave_run_param_t*)shadow_enclave_run_args,
       &enclave_sbi_param_local,
-      sizeof(struct shadow_enclave_run_param_t));
+      sizeof(shadow_enclave_run_param_t));
   }
   return retval;
 }
@@ -1244,14 +1244,14 @@ uintptr_t sm_handle_yield(uintptr_t *regs, uintptr_t mcause, uintptr_t mepc)
  */
 uintptr_t sm_create_server_enclave(uintptr_t enclave_sbi_param)
 {
-  struct enclave_create_param_t enclave_sbi_param_local;
+  enclave_create_param_t enclave_sbi_param_local;
   uintptr_t retval = 0;
   if(test_public_range(PADDR_TO_PFN(enclave_sbi_param),1)<0){
     return ENCLAVE_ERROR;
   }
   retval = copy_from_host(&enclave_sbi_param_local,
-      (struct enclave_create_param_t*)enclave_sbi_param,
-      sizeof(struct enclave_create_param_t));
+      (enclave_create_param_t*)enclave_sbi_param,
+      sizeof(enclave_create_param_t));
   if(retval != 0)
     return ENCLAVE_ERROR;
 

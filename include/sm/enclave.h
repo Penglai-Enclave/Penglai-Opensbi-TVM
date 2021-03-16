@@ -24,7 +24,7 @@
 #define ENCLAVE_MODE 1
 #define NORMAL_MODE 0
 
-#define SET_ENCLAVE_METADATA(point, enclave, create_args, struct_type) do { \
+#define SET_ENCLAVE_METADATA(point, enclave, create_args, struct_type, base) do { \
   enclave->entry_point = point; \
   enclave->ocall_func_id = ((struct_type)create_args)->ecall_arg0; \
   enclave->ocall_arg0 = ((struct_type)create_args)->ecall_arg1; \
@@ -35,8 +35,8 @@
   enclave->shm_paddr = ((struct_type)create_args)->shm_paddr; \
   enclave->shm_size = ((struct_type)create_args)->shm_size; \
   enclave->host_ptbr = csr_read(CSR_SATP); \
-  enclave->root_page_table = ((struct_type)create_args)->paddr + RISCV_PGSIZE; \
-  enclave->thread_context.encl_ptbr = ((((struct_type)create_args)->paddr+RISCV_PGSIZE) >> RISCV_PGSHIFT) | SATP_MODE_CHOICE; \
+  enclave->root_page_table = ((struct_type)create_args)->base + RISCV_PGSIZE; \
+  enclave->thread_context.encl_ptbr = ((((struct_type)create_args)->base+RISCV_PGSIZE) >> RISCV_PGSHIFT) | SATP_MODE_CHOICE; \
   enclave->type = NORMAL_ENCLAVE; \
   enclave->state = FRESH; \
   enclave->caller_eid = -1; \
@@ -195,7 +195,7 @@ struct enclave_t* __alloc_enclave();
 int __free_enclave(int eid);
 void free_enclave_memory(struct pm_area_struct *pma);
 
-uintptr_t create_enclave(struct enclave_create_param_t create_args);
+uintptr_t create_enclave(enclave_create_param_t create_args);
 uintptr_t attest_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce);
 uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce);
 uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t addr, uintptr_t size);
@@ -209,8 +209,8 @@ uintptr_t exit_enclave(uintptr_t* regs, unsigned long retval);
 uintptr_t enclave_mmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size);
 uintptr_t enclave_unmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size);
 
-uintptr_t create_shadow_enclave(struct enclave_create_param_t create_args);
-uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_enclave_run_param_t enclave_run_param, uintptr_t addr, uintptr_t size);
+uintptr_t create_shadow_enclave(enclave_create_param_t create_args);
+uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_run_param_t enclave_run_param, uintptr_t addr, uintptr_t size);
 
 struct call_enclave_arg_t
 {

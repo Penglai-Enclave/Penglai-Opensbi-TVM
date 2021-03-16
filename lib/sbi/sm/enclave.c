@@ -1056,7 +1056,7 @@ void initilze_va_struct(struct pm_area_struct* pma, struct vm_area_struct* vma, 
  * 
  * \param create_args The arguments for creating a new enclave. 
  */
-uintptr_t create_enclave(struct enclave_create_param_t create_args)
+uintptr_t create_enclave(enclave_create_param_t create_args)
 {
   struct enclave_t* enclave = NULL;
   struct pm_area_struct* pma = NULL;
@@ -1101,25 +1101,7 @@ uintptr_t create_enclave(struct enclave_create_param_t create_args)
     goto failed;
   }
 
-  SET_ENCLAVE_METADATA(create_args.entry_point, enclave, &create_args, enclave_create_param *);
-  // enclave->entry_point = create_args.entry_point;
-  // enclave->ocall_func_id = create_args.ecall_arg0;
-  // enclave->ocall_arg0 = create_args.ecall_arg1;
-  // enclave->ocall_arg1 = create_args.ecall_arg2;
-  // enclave->ocall_syscall_num = create_args.ecall_arg3;
-  // enclave->kbuffer = create_args.kbuffer;
-  // enclave->kbuffer_size = create_args.kbuffer_size;
-  // enclave->shm_paddr = create_args.shm_paddr;
-  // enclave->shm_size = create_args.shm_size;
-  // enclave->host_ptbr = csr_read(CSR_SATP);
-  // enclave->root_page_table = create_args.paddr + RISCV_PGSIZE;
-  // enclave->thread_context.encl_ptbr = ((create_args.paddr+RISCV_PGSIZE) >> RISCV_PGSHIFT) | SATP_MODE_CHOICE;
-  // enclave->type = NORMAL_ENCLAVE;
-  // enclave->state = FRESH;
-  // enclave->caller_eid = -1;
-  // enclave->top_caller_eid = -1;
-  // enclave->cur_callee_eid = -1;
-  // sbi_memcpy(enclave->enclave_name, create_args.name, NAME_LEN);
+  SET_ENCLAVE_METADATA(create_args.entry_point, enclave, &create_args, enclave_create_param_t *, paddr);
 
   //traverse vmas
   pma = (struct pm_area_struct*)(create_args.paddr);
@@ -1197,7 +1179,7 @@ failed:
  * 
  * \param create_args The arguments for creating a new shadow enclave. 
  */
-uintptr_t create_shadow_enclave(struct enclave_create_param_t create_args)
+uintptr_t create_shadow_enclave(enclave_create_param_t create_args)
 {
   uintptr_t ret = 0;
   int need_free_secure_memory = 0;
@@ -1408,7 +1390,7 @@ run_enclave_out:
  * \param mm_arg_addr The relay page address for this enclave, map before enclave run.
  * \param mm_arg_size The relay page size for this enclave, map before enclave run.  
  */
-uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_enclave_run_param_t enclave_run_param, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
+uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_run_param_t enclave_run_param, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
 {
   struct enclave_t* enclave = NULL;
   struct shadow_enclave_t* shadow_enclave = NULL;
@@ -1469,24 +1451,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
     goto run_enclave_out;
   }
 
-  enclave->entry_point = shadow_enclave->entry_point;
-  enclave->ocall_func_id = enclave_run_param.ecall_arg0;
-  enclave->ocall_arg0 = enclave_run_param.ecall_arg1;
-  enclave->ocall_arg1 = enclave_run_param.ecall_arg2;
-  enclave->ocall_syscall_num = enclave_run_param.ecall_arg3;
-  enclave->kbuffer = enclave_run_param.kbuffer;
-  enclave->kbuffer_size = enclave_run_param.kbuffer_size;
-  enclave->shm_paddr = enclave_run_param.shm_paddr;
-  enclave->shm_size = enclave_run_param.shm_size; 
-  enclave->host_ptbr = csr_read(CSR_SATP);
-  enclave->root_page_table = enclave_run_param.free_page + RISCV_PGSIZE;
-  enclave->thread_context.encl_ptbr = ((enclave_run_param.free_page + RISCV_PGSIZE) >> RISCV_PGSHIFT) | SATP_MODE_CHOICE;
-  enclave->type = NORMAL_ENCLAVE;
-  enclave->state = FRESH;
-  enclave->caller_eid = -1;
-  enclave->top_caller_eid = -1;
-  enclave->cur_callee_eid = -1;
-  sbi_memcpy(enclave->enclave_name, enclave_run_param.name, NAME_LEN);
+  SET_ENCLAVE_METADATA(shadow_enclave->entry_point, enclave, &enclave_run_param, shadow_enclave_run_param_t *, free_page);
 
   //traverse vmas
   pma = (struct pm_area_struct*)(enclave_run_param.free_page);
