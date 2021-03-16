@@ -1059,8 +1059,11 @@ void initilze_va_struct(struct pm_area_struct* pma, struct vm_area_struct* vma, 
 uintptr_t create_enclave(struct enclave_create_param_t create_args)
 {
   struct enclave_t* enclave = NULL;
-  uintptr_t ret = 0;
+  struct pm_area_struct* pma = NULL;
+  struct vm_area_struct* vma = NULL;
+  uintptr_t ret = 0, free_mem = 0;
   int need_free_secure_memory = 0;
+
   acquire_enclave_metadata_lock();
 
   if(!enable_enclave())
@@ -1097,28 +1100,30 @@ uintptr_t create_enclave(struct enclave_create_param_t create_args)
     sbi_printf("M mode: %s: alloc enclave is failed \n", __func__);
     goto failed;
   }
-  enclave->entry_point = create_args.entry_point;
-  enclave->ocall_func_id = create_args.ecall_arg0;
-  enclave->ocall_arg0 = create_args.ecall_arg1;
-  enclave->ocall_arg1 = create_args.ecall_arg2;
-  enclave->ocall_syscall_num = create_args.ecall_arg3;
-  enclave->kbuffer = create_args.kbuffer;
-  enclave->kbuffer_size = create_args.kbuffer_size;
-  enclave->shm_paddr = create_args.shm_paddr;
-  enclave->shm_size = create_args.shm_size;
-  enclave->host_ptbr = csr_read(CSR_SATP);
-  enclave->root_page_table = create_args.paddr + RISCV_PGSIZE;
-  enclave->thread_context.encl_ptbr = ((create_args.paddr+RISCV_PGSIZE) >> RISCV_PGSHIFT) | SATP_MODE_CHOICE;
-  enclave->type = NORMAL_ENCLAVE;
-  enclave->state = FRESH;
-  enclave->caller_eid = -1;
-  enclave->top_caller_eid = -1;
-  enclave->cur_callee_eid = -1;
-  sbi_memcpy(enclave->enclave_name, create_args.name, NAME_LEN);
+
+  SET_ENCLAVE_METADATA(create_args.entry_point, enclave, &create_args, enclave_create_param *);
+  // enclave->entry_point = create_args.entry_point;
+  // enclave->ocall_func_id = create_args.ecall_arg0;
+  // enclave->ocall_arg0 = create_args.ecall_arg1;
+  // enclave->ocall_arg1 = create_args.ecall_arg2;
+  // enclave->ocall_syscall_num = create_args.ecall_arg3;
+  // enclave->kbuffer = create_args.kbuffer;
+  // enclave->kbuffer_size = create_args.kbuffer_size;
+  // enclave->shm_paddr = create_args.shm_paddr;
+  // enclave->shm_size = create_args.shm_size;
+  // enclave->host_ptbr = csr_read(CSR_SATP);
+  // enclave->root_page_table = create_args.paddr + RISCV_PGSIZE;
+  // enclave->thread_context.encl_ptbr = ((create_args.paddr+RISCV_PGSIZE) >> RISCV_PGSHIFT) | SATP_MODE_CHOICE;
+  // enclave->type = NORMAL_ENCLAVE;
+  // enclave->state = FRESH;
+  // enclave->caller_eid = -1;
+  // enclave->top_caller_eid = -1;
+  // enclave->cur_callee_eid = -1;
+  // sbi_memcpy(enclave->enclave_name, create_args.name, NAME_LEN);
 
   //traverse vmas
-  struct pm_area_struct* pma = (struct pm_area_struct*)(create_args.paddr);
-  struct vm_area_struct* vma = (struct vm_area_struct*)(create_args.paddr + sizeof(struct pm_area_struct));
+  pma = (struct pm_area_struct*)(create_args.paddr);
+  vma = (struct vm_area_struct*)(create_args.paddr + sizeof(struct pm_area_struct));
   pma->paddr = create_args.paddr;
   pma->size = create_args.size;
   pma->free_mem = create_args.free_mem;
@@ -1134,7 +1139,7 @@ uintptr_t create_enclave(struct enclave_create_param_t create_args)
 
   enclave->free_pages = NULL;
   enclave->free_pages_num = 0;
-  uintptr_t free_mem = create_args.paddr + create_args.size - RISCV_PGSIZE;
+  free_mem = create_args.paddr + create_args.size - RISCV_PGSIZE;
 
   // Reserve the first two entries for free memory page
   while(free_mem >= create_args.free_mem)
@@ -1248,47 +1253,23 @@ failed:
   return ret;
 }
 
-/**
- * \brief Run enclave with the given eid.
- * 
- * \param regs The host reg need to saved.
- * \param eid The given enclave id.
- * \param mm_arg_addr The relay page address for this enclave, map before enclave run.
- * \param mm_arg_size The relay page size for this enclave, map before enclave run.  
- */
-uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
+uintptr_t map_relay_page(unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_arg_size, uintptr_t* mmap_offset, struct enclave_t* enclave, struct relay_page_entry_t* relay_page_entry)
 {
-  struct enclave_t* enclave;
   uintptr_t retval = 0;
-  struct relay_page_entry_t* relay_page_entry;
-
-  acquire_enclave_metadata_lock();
-
-  enclave = __get_enclave(eid);
-  if(!enclave || enclave->state != FRESH || enclave->type == SERVER_ENCLAVE)
-  {
-    sbi_bug("M mode: run_enclave: enclave%d can not be accessed!\n", eid);
-    retval = -1UL;
-    goto run_enclave_out;
-  }
-
-  /** We bind a host process (host_ptbr) during run_enclave, which will be checked during resume */
-  enclave->host_ptbr = csr_read(CSR_SATP);
-  //if the mm_arg_size is zero but mm_arg_addr is not zero, it means the relay page is transfer from other enclave 
-  unsigned long mmap_offset = 0;
+  // If the mm_arg_size is zero but mm_arg_addr is not zero, it means the relay page is transfer from other enclave 
   if(mm_arg_addr && !mm_arg_size)
   {
-    if (check_enclave_name(enclave->enclave_name, eid) < 0)
+    int slab_index = 0, link_mem_index = 0, kk = 0;
+    if(check_enclave_name(enclave->enclave_name, eid) < 0)
     {
-      sbi_bug("M mode：run enclave: check enclave name is failed\n");
-      goto run_enclave_out;
+      sbi_bug("M mode：map_relay_page: check enclave name is failed\n");
+      retval = -1UL;
+      return retval;
     }
-    int slab_index = 0, link_mem_index = 0;
-    int kk = 0;
     while((relay_page_entry = __get_relay_page_by_name(enclave->enclave_name, &slab_index, &link_mem_index)) != NULL)
     {
-      mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_MM_ARG_BASE + mmap_offset, relay_page_entry->addr, relay_page_entry->size);
-      mmap_offset = mmap_offset + relay_page_entry->size;
+      mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_MM_ARG_BASE + *mmap_offset, relay_page_entry->addr, relay_page_entry->size);
+      *mmap_offset = *mmap_offset + relay_page_entry->size;
       if (enclave->mm_arg_paddr[0] == 0)
       {
         enclave->mm_arg_paddr[kk] = relay_page_entry->addr;
@@ -1304,8 +1285,9 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
     }
     if ((relay_page_entry == NULL) && (enclave->mm_arg_paddr[0] == 0))
     {
-      sbi_bug("M mode: run_enclave: get relay page by name is failed \n");
-      goto run_enclave_out;
+      sbi_bug("M mode: map_relay_page: get relay page by name is failed \n");
+      retval = -1UL;
+      return retval;
     }
   }
   else if(mm_arg_addr && mm_arg_size)
@@ -1313,29 +1295,69 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
     //check whether the enclave name is duplicated
     if (check_enclave_name(enclave->enclave_name, eid) < 0)
     {
-      sbi_bug("M mode：run enclave: check enclave name is failed\n");
-      goto run_enclave_out;
+      sbi_bug("M mode：map_relay_page: check enclave name is failed\n");
+      retval = -1UL;
+      return retval;
     }
     if (__alloc_relay_page_entry(enclave->enclave_name, mm_arg_addr, mm_arg_size) ==NULL)
     {
-      sbi_printf("M mode: run enclave: lack of the secure memory for the relay page entries\n");
+      sbi_printf("M mode: map_relay_page: lack of the secure memory for the relay page entries\n");
       retval = ENCLAVE_NO_MEM;
-      goto run_enclave_out;
+      return retval;
     }
     //check the relay page is not mapping in other enclave, and unmap the relay page for host
     if(check_and_set_secure_memory(mm_arg_addr, mm_arg_size) != 0)
     {
-      sbi_bug("M mode: run enclave: check_and_set_secure_memory is failed\n");
+      sbi_bug("M mode: map_relay_page: check_and_set_secure_memory is failed\n");
       retval = -1UL;
-      goto run_enclave_out;
+      return retval;
     }
     enclave->mm_arg_paddr[0] = mm_arg_addr;
     enclave->mm_arg_size[0] = mm_arg_size;
-    mmap_offset = mm_arg_size;
+    *mmap_offset = mm_arg_size;
     mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_MM_ARG_BASE, mm_arg_addr, mm_arg_size);
     
     //Sync and flush the remote TLB entry.
     tlb_remote_sfence();
+    return 0;
+  }
+
+  return retval;
+}
+
+/**
+ * \brief Run enclave with the given eid.
+ * 
+ * \param regs The host reg need to saved.
+ * \param eid The given enclave id.
+ * \param mm_arg_addr The relay page address for this enclave, map before enclave run.
+ * \param mm_arg_size The relay page size for this enclave, map before enclave run.  
+ */
+uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
+{
+  struct enclave_t* enclave;
+  uintptr_t retval = 0, mmap_offset = 0;
+  struct relay_page_entry_t* relay_page_entry = NULL;
+
+  acquire_enclave_metadata_lock();
+
+  enclave = __get_enclave(eid);
+  if(!enclave || enclave->state != FRESH || enclave->type == SERVER_ENCLAVE)
+  {
+    sbi_bug("M mode: run_enclave: enclave%d can not be accessed!\n", eid);
+    retval = -1UL;
+    goto run_enclave_out;
+  }
+
+  /** We bind a host process (host_ptbr) during run_enclave, which will be checked during resume */
+  enclave->host_ptbr = csr_read(CSR_SATP);
+  
+  if((retval =map_relay_page(eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, relay_page_entry)) < 0)
+  {
+    if (retval == ENCLAVE_NO_MEM)
+      goto run_enclave_out;
+    else
+      goto run_enclave_out;
   }
   //the relay page is transfered from another enclave
 
@@ -1388,12 +1410,16 @@ run_enclave_out:
  */
 uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_enclave_run_param_t enclave_run_param, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
 {
-  struct enclave_t* enclave;
-  uintptr_t retval = 0;
-  struct shadow_enclave_t* shadow_enclave;
-  struct relay_page_entry_t* relay_page_entry;
-  int need_free_secure_memory = 0;
+  struct enclave_t* enclave = NULL;
+  struct shadow_enclave_t* shadow_enclave = NULL;
+  struct relay_page_entry_t* relay_page_entry = NULL;
+  struct pm_area_struct* pma = NULL;
+  struct vm_area_struct* vma = NULL;
+  uintptr_t retval = 0, mmap_offset = 0, free_mem = 0;
+  int need_free_secure_memory = 0, copy_page_table_ret = 0;
+
   acquire_enclave_metadata_lock();
+
   shadow_enclave = __get_shadow_enclave(eid);
   enclave = __alloc_enclave();
 
@@ -1411,12 +1437,9 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
   }
   need_free_secure_memory = 1;
 
-  // Sync and flush the remote TLB entry.
-  tlb_remote_sfence();
-
   enclave->free_pages = NULL;
   enclave->free_pages_num = 0;
-  uintptr_t free_mem = enclave_run_param.free_page + enclave_run_param.size - 2*RISCV_PGSIZE;
+  free_mem = enclave_run_param.free_page + enclave_run_param.size - 2*RISCV_PGSIZE;
   
   // Reserve the first two entries in the free pages
   while(free_mem >= enclave_run_param.free_page + 2*RISCV_PGSIZE)
@@ -1428,7 +1451,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
     enclave->free_pages_num += 1;
     free_mem -= RISCV_PGSIZE;
   }
-  int copy_page_table_ret;
+
   copy_page_table_ret = __copy_page_table((pte_t*) (shadow_enclave->root_page_table), &(enclave->free_pages), 2, (pte_t*)(enclave_run_param.free_page + RISCV_PGSIZE));
   if (copy_page_table_ret < 0)
   {
@@ -1436,6 +1459,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
     retval = ENCLAVE_ERROR;
     goto run_enclave_out;
   }
+
   copy_page_table_ret =  map_empty_page((uintptr_t*)(enclave_run_param.free_page + RISCV_PGSIZE), &(enclave->free_pages), ENCLAVE_DEFAULT_STACK_BASE-ENCLAVE_DEFAULT_STACK_SIZE, ENCLAVE_DEFAULT_STACK_SIZE);
   if (copy_page_table_ret < 0)
   {
@@ -1444,6 +1468,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
     retval = ENCLAVE_ERROR;
     goto run_enclave_out;
   }
+
   enclave->entry_point = shadow_enclave->entry_point;
   enclave->ocall_func_id = enclave_run_param.ecall_arg0;
   enclave->ocall_arg0 = enclave_run_param.ecall_arg1;
@@ -1464,9 +1489,8 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
   sbi_memcpy(enclave->enclave_name, enclave_run_param.name, NAME_LEN);
 
   //traverse vmas
-  struct pm_area_struct* pma = (struct pm_area_struct*)(enclave_run_param.free_page);
-  struct vm_area_struct* vma = (struct vm_area_struct*)(enclave_run_param.free_page + sizeof(struct pm_area_struct));
-  //
+  pma = (struct pm_area_struct*)(enclave_run_param.free_page);
+  vma = (struct vm_area_struct*)(enclave_run_param.free_page + sizeof(struct pm_area_struct));
   pma->paddr = enclave_run_param.free_page;
   pma->size = enclave_run_param.size;
   pma->free_mem = enclave_run_param.free_page + 2*RISCV_PGSIZE;
@@ -1496,66 +1520,13 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, struct shadow_en
   copy_word_to_host((unsigned int*)enclave_run_param.eid_ptr, enclave->eid);
 
   //map the relay page
-  unsigned long mmap_offset = 0;
-  if(mm_arg_addr && !mm_arg_size)
+  if((retval =map_relay_page(eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, relay_page_entry)) < 0)
   {
-    if (check_enclave_name(enclave->enclave_name, enclave->eid) < 0)
-    {
-      sbi_bug("M mode：run shadow enclave: check enclave name is failed\n");
-      goto run_enclave_out;
-    }
-    int slab_index = 0, link_mem_index = 0;
-    int kk = 0;
-    while((relay_page_entry = __get_relay_page_by_name(enclave->enclave_name, &slab_index, &link_mem_index)) != NULL)
-    {
-      mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_MM_ARG_BASE + mmap_offset, relay_page_entry->addr, relay_page_entry->size);
-      mmap_offset = mmap_offset + relay_page_entry->size;
-      if (enclave->mm_arg_paddr[0] == 0)
-      {
-        enclave->mm_arg_paddr[kk] = relay_page_entry->addr;
-        enclave->mm_arg_size[kk] = relay_page_entry->size;
-      }
-      else
-      {
-        // enclave->mm_arg_size = enclave->mm_arg_size + relay_page_entry->size;
-        enclave->mm_arg_paddr[kk] = relay_page_entry->addr;
-        enclave->mm_arg_size[kk] = relay_page_entry->size;
-      }
-      kk = kk + 1;
-    }
-    if ((relay_page_entry == NULL) && (enclave->mm_arg_paddr[0] == 0))
-    {
-      sbi_bug("M mode: run_shadow_enclave: get relay page by name is failed \n");
-      goto run_enclave_out;
-    }
-  }
-  else if(mm_arg_addr && mm_arg_size)
-  {
-    //check whether the enclave name is duplicated
-    if (check_enclave_name(enclave->enclave_name, enclave->eid) < 0)
-    {
-      sbi_bug("M mode：run shadow enclave: check enclave name is failed\n");
-      goto run_enclave_out;
-    }
-    if (__alloc_relay_page_entry(enclave->enclave_name, mm_arg_addr, mm_arg_size) ==NULL)
-    {
-      sbi_printf("M mode: run shadow enclave: lack of the secure memory for the relay page entries\n");
-      retval = ENCLAVE_NO_MEM;
+    if (retval == ENCLAVE_NO_MEM)
       goto failed;
-    }
-    //check the relay page is not mapping in other enclave, and unmap the relay page for host
-    if(check_and_set_secure_memory(mm_arg_addr, mm_arg_size) != 0)
-    {
-      retval = -1UL;
+    else
       goto run_enclave_out;
-    }
-    enclave->mm_arg_paddr[0] = mm_arg_addr;
-    enclave->mm_arg_size[0] = mm_arg_size;
-    mmap_offset = mm_arg_size;
-    mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_MM_ARG_BASE, mm_arg_addr, mm_arg_size);
   }
-  //end map the relay page
- 
 
   if(swap_from_host_to_enclave(regs, enclave) < 0)
   {

@@ -64,7 +64,7 @@ typedef enum
   SERVER_ENCLAVE = 1
 } enclave_type_t;
 
-struct enclave_create_param_t
+typedef struct enclave_create_param_t
 {
   unsigned int *eid_ptr;
   char name[NAME_LEN];
@@ -89,7 +89,7 @@ struct enclave_create_param_t
   unsigned long *ecall_arg1;
   unsigned long *ecall_arg2;
   unsigned long *ecall_arg3;
-};
+} enclave_create_param;
 
 struct shadow_enclave_run_param_t
 {
