@@ -265,7 +265,7 @@ struct enclave_t* __alloc_enclave()
 {
   struct link_mem_t *cur, *next;
   struct enclave_t* enclave = NULL;
-  int i, found, eid;
+  int i = 0, found = 0, eid = 0;
 
   //enclave metadata list hasn't be initialized yet
   if(enclave_metadata_head == NULL)
@@ -279,8 +279,6 @@ struct enclave_t* __alloc_enclave()
     enclave_metadata_tail = enclave_metadata_head;
   }
 
-  found = 0;
-  eid = 0;
   for(cur = enclave_metadata_head; cur != NULL; cur = cur->next_link_mem)
   {
     for(i = 0; i < (cur->slab_num); i++)
@@ -329,10 +327,8 @@ int __free_enclave(int eid)
 {
   struct link_mem_t *cur;
   struct enclave_t *enclave = NULL;
-  int found, count, ret_val;
+  int found=0 , count=0, ret_val=0;
 
-  found = 0;
-  count = 0;
   for(cur = enclave_metadata_head; cur != NULL; cur = cur->next_link_mem)
   {
     if(eid < (count + cur->slab_num))
@@ -366,10 +362,8 @@ struct enclave_t* __get_enclave(int eid)
 {
   struct link_mem_t *cur;
   struct enclave_t *enclave;
-  int found, count;
+  int found=0, count=0;
 
-  found = 0;
-  count = 0;
   for(cur = enclave_metadata_head; cur != NULL; cur = cur->next_link_mem)
   {
     if(eid < (count + cur->slab_num))
@@ -404,8 +398,7 @@ int check_enclave_name(char *enclave_name, int target_eid)
 {
   struct link_mem_t *cur;
   struct enclave_t* enclave = NULL;
-  int i, eid;
-  eid = 0;
+  int i=0, eid=0;
   for(cur = enclave_metadata_head; cur != NULL; cur = cur->next_link_mem)
   {
     for(i = 0; i < (cur->slab_num); i++)
@@ -429,7 +422,7 @@ static struct shadow_enclave_t* __alloc_shadow_enclave()
 {
   struct link_mem_t *cur, *next;
   struct shadow_enclave_t* shadow_enclave = NULL;
-  int i, found, eid;
+  int i=0, found=0, eid=0;
 
   //enclave metadata list hasn't be initialized yet
   if(shadow_enclave_metadata_head == NULL)
@@ -443,8 +436,6 @@ static struct shadow_enclave_t* __alloc_shadow_enclave()
     shadow_enclave_metadata_tail = shadow_enclave_metadata_head;
   }
 
-  found = 0;
-  eid = 0;
   for(cur = shadow_enclave_metadata_head; cur != NULL; cur = cur->next_link_mem)
   {
     for(i = 0; i < (cur->slab_num); i++)
@@ -493,10 +484,8 @@ static struct shadow_enclave_t* __get_shadow_enclave(int eid)
 {
   struct link_mem_t *cur;
   struct shadow_enclave_t *shadow_enclave;
-  int found, count;
+  int found=0, count=0;
 
-  found = 0;
-  count = 0;
   for(cur = shadow_enclave_metadata_head; cur != NULL; cur = cur->next_link_mem)
   {
     if(eid < (count + cur->slab_num))
@@ -568,7 +557,7 @@ struct relay_page_entry_t* __alloc_relay_page_entry(char *enclave_name, unsigned
 {
   struct link_mem_t *cur, *next;
   struct relay_page_entry_t* relay_page_entry = NULL;
-  int found = 0;
+  int found = 0, link_mem_index = 0;
 
   //relay_page_entry metadata list hasn't be initialized yet
   if(relay_page_head == NULL)
@@ -596,8 +585,6 @@ struct relay_page_entry_t* __alloc_relay_page_entry(char *enclave_name, unsigned
     }
   }
   //traverse the link memory and check whether there is an empty entry in the link memoy
-  found = 0;
-  int link_mem_index = 0;
   for(cur = relay_page_head; cur != NULL; cur = cur->next_link_mem)
   {
     for(int i = 0; i < (cur->slab_num); i++)
@@ -697,9 +684,8 @@ struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *sla
 {
   struct link_mem_t *cur;
   struct relay_page_entry_t *relay_page_entry = NULL;
-  int i, found, k;
+  int i, k, found=0;
 
-  found = 0;
   cur = relay_page_head;
   for (k  = 0; k < (*link_mem_index); k++)
     cur = cur->next_link_mem;
