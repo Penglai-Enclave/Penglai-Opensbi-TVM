@@ -54,3 +54,4 @@ libsbi-objs-y += sm/relay_page.o
 libsbi-objs-y += sm/server_enclave.o
 libsbi-objs-y += sm/sm.o
 libsbi-objs-y += sm/thread.o
+libsbi-objs-y += sm/attest.o

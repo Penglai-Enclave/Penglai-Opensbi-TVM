@@ -9,6 +9,7 @@
 #include "sm/platform/pt_area/platform_thread.h"
 #include "sm/ipi.h"
 #include "sm/relay_page.h"
+#include "sm/attest.h"
 #include <sbi/sbi_tlb.h>
 
 int eapp_args = 0;
@@ -1532,6 +1533,105 @@ failed:
   return retval;
 }
 
+
+uintptr_t attest_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t nonce)
+{
+  struct enclave_t* enclave = NULL;
+  int attestable = 1;
+  struct report_t report;
+  enclave_state_t old_state = INVALID;
+  acquire_enclave_metadata_lock();
+  enclave = __get_enclave(eid);
+  if(!enclave || (enclave->state != FRESH && enclave->state != STOPPED)
+    || enclave->host_ptbr != csr_read(CSR_SATP))
+    attestable = 0;
+  else
+  {
+    old_state = enclave->state;
+    enclave->state = ATTESTING;
+  }
+  release_enclave_metadata_lock();
+
+  if(!attestable)
+  {
+    sbi_printf("M mode: attest_enclave: enclave%ld is not attestable\r\n", eid);
+    return -1UL;
+  }
+
+  sbi_memcpy((void*)(report.dev_pub_key), (void*)DEV_PUB_KEY, PUBLIC_KEY_SIZE);
+  sbi_memcpy((void*)(report.sm.hash), (void*)SM_HASH, HASH_SIZE);
+  sbi_memcpy((void*)(report.sm.sm_pub_key), (void*)SM_PUB_KEY, PUBLIC_KEY_SIZE);
+  sbi_memcpy((void*)(report.sm.signature), (void*)SM_SIGNATURE, SIGNATURE_SIZE);
+
+  hash_enclave(enclave, (void*)(report.enclave.hash), nonce);
+  sign_enclave((void*)(report.enclave.signature), (void*)(report.enclave.hash));
+  report.enclave.nonce = nonce;
+
+  //printHex((unsigned char*)(report.enclave.signature), 64);
+
+  copy_to_host((void*)report_ptr, (void*)(&report), sizeof(struct report_t));
+
+  acquire_enclave_metadata_lock();
+  enclave->state = old_state;
+  release_enclave_metadata_lock();
+  return 0;
+}
+
+uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t nonce)
+{
+  struct shadow_enclave_t* shadow_enclave = NULL;
+  int attestable = 1;
+  struct report_t report;
+  acquire_enclave_metadata_lock();
+  shadow_enclave = __get_shadow_enclave(eid);
+  release_enclave_metadata_lock();
+
+  if(!attestable)
+  {
+    sbi_printf("M mode: attest_enclave: enclave%ld is not attestable\r\n", eid);
+    return -1UL;
+  }
+  update_hash_shadow_enclave(shadow_enclave, (char *)shadow_enclave->hash, nonce);
+  sbi_memcpy((char *)(report.enclave.hash), (char *)shadow_enclave->hash, HASH_SIZE);
+  sbi_memcpy((void*)(report.dev_pub_key), (void*)DEV_PUB_KEY, PUBLIC_KEY_SIZE);
+  sbi_memcpy((void*)(report.sm.hash), (void*)SM_HASH, HASH_SIZE);
+  sbi_memcpy((void*)(report.sm.sm_pub_key), (void*)SM_PUB_KEY, PUBLIC_KEY_SIZE);
+  sbi_memcpy((void*)(report.sm.signature), (void*)SM_SIGNATURE, SIGNATURE_SIZE);
+  sign_enclave((void*)(report.enclave.signature), (void*)(report.enclave.hash));
+  report.enclave.nonce = nonce;
+
+  copy_to_host((void*)report_ptr, (void*)(&report), sizeof(struct report_t));
+
+  return 0;
+}
+
+uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t nonce)
+{
+  struct shadow_enclave_t* shadow_enclave = NULL;
+  int attestable = 1;
+  struct report_t report;
+  acquire_enclave_metadata_lock();
+  shadow_enclave = __get_shadow_enclave(eid);
+  release_enclave_metadata_lock();
+
+  if(!attestable)
+  {
+    sbi_printf("M mode: attest_enclave: enclave%d is not attestable\r\n", eid);
+    return -1UL;
+  }
+  update_hash_shadow_enclave(shadow_enclave, (char *)shadow_enclave->hash, nonce);
+  sbi_memcpy((char *)(report.enclave.hash), (char *)shadow_enclave->hash, HASH_SIZE);
+  sbi_memcpy((void*)(report.dev_pub_key), (void*)DEV_PUB_KEY, PUBLIC_KEY_SIZE);
+  sbi_memcpy((void*)(report.sm.hash), (void*)SM_HASH, HASH_SIZE);
+  sbi_memcpy((void*)(report.sm.sm_pub_key), (void*)SM_PUB_KEY, PUBLIC_KEY_SIZE);
+  sbi_memcpy((void*)(report.sm.signature), (void*)SM_SIGNATURE, SIGNATURE_SIZE);
+  sign_enclave((void*)(report.enclave.signature), (void*)(report.enclave.hash));
+  report.enclave.nonce = nonce;
+
+  copy_to_host((void*)report_ptr, (void*)(&report), sizeof(struct report_t));
+
+  return 0;
+}
 /**
  * \brief host use this function to wake a stopped enclave.
  * 
@@ -1709,36 +1809,15 @@ uintptr_t sbrk_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintptr_
  */
 uintptr_t return_relay_page_after_resume(struct enclave_t *enclave, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
 {
-  uintptr_t retval = 0;
-  if(mm_arg_addr && mm_arg_size)
+  uintptr_t retval = 0, mmap_offset = 0;
+  if((retval =map_relay_page(enclave->eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, NULL)) < 0)
   {
-    //check whether the enclave name is duplicated
-    if (check_enclave_name(enclave->enclave_name, enclave->eid) < 0)
-    {
-      sbi_bug("M mode：run enclave: check enclave name is failed\n");
-      retval = -1;
+    if (retval == ENCLAVE_NO_MEM)
       goto run_enclave_out;
-    }
-    if (__alloc_relay_page_entry(enclave->enclave_name, mm_arg_addr, mm_arg_size) ==NULL)
-    {
-      sbi_printf("M mode: run shadow enclave: lack of the secure memory for the relay page entries\n");
-      retval = ENCLAVE_NO_MEM;
+    else
       goto run_enclave_out;
-    }
-    //check the relay page is not mapping in other enclave, and unmap the relay page for host
-    if(check_and_set_secure_memory(mm_arg_addr, mm_arg_size) != 0)
-    {
-      sbi_bug("M mode: run enclave: check_and_set_secure_memory is failed\n");
-      retval = -1UL;
-      goto run_enclave_out;
-    }
-    enclave->mm_arg_paddr[0] = mm_arg_addr;
-    enclave->mm_arg_size[0] = mm_arg_size;
-    mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_MM_ARG_BASE, mm_arg_addr, mm_arg_size);
-    
-    //Sync and flush the remote TLB entry.
-    tlb_remote_sfence();
   }
+
 run_enclave_out:
   return retval;
 }
@@ -1869,14 +1948,7 @@ destroy_enclave_out:
   {
     //TODO:
     free_enclave_memory(pma);
-    for(int kk = 0; kk < RELAY_PAGE_NUM; kk++)
-    {
-      if (mm_arg_paddr[kk])
-      {
-        __free_secure_memory(mm_arg_paddr[kk], mm_arg_size[kk]);
-        __free_relay_page_entry(mm_arg_paddr[kk], mm_arg_size[kk]);
-      }
-    }
+    free_all_relay_page(mm_arg_paddr, mm_arg_size);
   }
 
   return retval;
@@ -1932,14 +2004,7 @@ exit_enclave_out:
   if(need_free_enclave_memory)
   {
     free_enclave_memory(pma);
-    for(int kk = 0; kk < RELAY_PAGE_NUM; kk++)
-    {
-      if (mm_arg_paddr[kk])
-      {
-        __free_secure_memory(mm_arg_paddr[kk], mm_arg_size[kk]);
-        __free_relay_page_entry(mm_arg_paddr[kk], mm_arg_size[kk]);
-      }
-    }
+    free_all_relay_page(mm_arg_paddr, mm_arg_size);
   }
   release_enclave_metadata_lock();
   return ret;
@@ -2576,14 +2641,7 @@ ipi_stop_enclave_out:
   if(need_free_enclave_memory)
   {
     free_enclave_memory(pma);
-    for(int kk = 0; kk < RELAY_PAGE_NUM; kk++)
-    {
-      if (mm_arg_paddr[kk])
-      {
-        __free_secure_memory(mm_arg_paddr[kk], mm_arg_size[kk]);
-        __free_relay_page_entry(mm_arg_paddr[kk], mm_arg_size[kk]);
-      }
-    }
+    free_all_relay_page(mm_arg_paddr, mm_arg_size);
   }
   regs[10] = 0;
 	regs[11] = 0;
