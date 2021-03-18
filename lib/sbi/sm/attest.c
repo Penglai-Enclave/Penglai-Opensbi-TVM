@@ -1,8 +1,7 @@
-#include "attest.h"
-#include "gm/sm3.h"
-#include "gm/sm2.h"
-#include "encoding.h"
-#include "vm.h"
+#include "sm/attest.h"
+#include "sm/gm/sm3.h"
+#include "sm/gm/sm2.h"
+#include "sbi/riscv_encoding.h"
 
 static int hash_enclave_mem(struct sm3_context *hash_ctx, pte_t* ptes, int level, uintptr_t va, int hash_va)
 {

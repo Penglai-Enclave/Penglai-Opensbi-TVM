@@ -1,3 +1,4 @@
+#include "sbi/sbi_console.h"
 #include "sm/sm.h"
 #include "sm/enclave.h"
 #include "sm/enclave_vm.h"

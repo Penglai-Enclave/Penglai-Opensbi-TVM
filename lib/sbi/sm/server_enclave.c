@@ -5,6 +5,7 @@
 #include "sm/server_enclave.h"
 #include "sm/ipi.h"
 #include "sbi/sbi_string.h"
+#include "sbi/sbi_console.h"
 
 struct link_mem_t* server_enclave_head = NULL;
 struct link_mem_t* server_enclave_tail = NULL;

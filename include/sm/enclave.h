@@ -3,10 +3,8 @@
 
 #include "sbi/riscv_encoding.h"
 #include "sm/enclave_args.h"
-#include "sbi/sbi_bitops.h" 
 #include "sbi/riscv_atomic.h" 
 #include "sbi/riscv_locks.h"
-#include "sbi/sbi_console.h"
 #include "sbi/sbi_string.h"
 #include "sbi/riscv_asm.h"
 #include "sm/thread.h"

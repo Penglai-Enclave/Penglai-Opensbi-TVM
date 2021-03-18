@@ -1,7 +1,9 @@
 #include "sbi/riscv_encoding.h"
 #include "sbi/sbi_math.h"
 #include "sbi/riscv_locks.h"
+#include "sbi/sbi_bitops.h" 
 #include "sbi/sbi_ipi_destroy_enclave.h"
+#include "sbi/sbi_console.h"
 #include "sm/enclave.h"
 #include "sm/enclave_vm.h"
 #include "sm/enclave_mm.h"
@@ -1142,8 +1144,8 @@ uintptr_t create_enclave(enclave_create_param_t create_args)
     enclave->shm_paddr = 0;
     enclave->shm_size = 0;
   }
-  //TODO:
-  //Calculate the enclave measurement
+  
+  hash_enclave(enclave, (void*)(enclave->hash), 0);
   copy_word_to_host((unsigned int*)create_args.eid_ptr, enclave->eid);
   release_enclave_metadata_lock();
   return ret;
@@ -1207,8 +1209,8 @@ uintptr_t create_shadow_enclave(enclave_create_param_t create_args)
   //first page is reserve for page link
   shadow_enclave->root_page_table = create_args.paddr + RISCV_PGSIZE;
   shadow_enclave->thread_context.encl_ptbr = ((create_args.paddr+RISCV_PGSIZE) >> RISCV_PGSHIFT) | SATP_MODE_CHOICE;
-  //TODO
-  //Calculate the shadow enclave measurement 
+  
+  hash_shadow_enclave(shadow_enclave, (void*)(shadow_enclave->hash), 0);
   copy_word_to_host((unsigned int*)create_args.eid_ptr, shadow_enclave->eid);
   spin_unlock(&enclave_metadata_lock);
   return ret;
@@ -1605,33 +1607,6 @@ uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t n
   return 0;
 }
 
-uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t nonce)
-{
-  struct shadow_enclave_t* shadow_enclave = NULL;
-  int attestable = 1;
-  struct report_t report;
-  acquire_enclave_metadata_lock();
-  shadow_enclave = __get_shadow_enclave(eid);
-  release_enclave_metadata_lock();
-
-  if(!attestable)
-  {
-    sbi_printf("M mode: attest_enclave: enclave%d is not attestable\r\n", eid);
-    return -1UL;
-  }
-  update_hash_shadow_enclave(shadow_enclave, (char *)shadow_enclave->hash, nonce);
-  sbi_memcpy((char *)(report.enclave.hash), (char *)shadow_enclave->hash, HASH_SIZE);
-  sbi_memcpy((void*)(report.dev_pub_key), (void*)DEV_PUB_KEY, PUBLIC_KEY_SIZE);
-  sbi_memcpy((void*)(report.sm.hash), (void*)SM_HASH, HASH_SIZE);
-  sbi_memcpy((void*)(report.sm.sm_pub_key), (void*)SM_PUB_KEY, PUBLIC_KEY_SIZE);
-  sbi_memcpy((void*)(report.sm.signature), (void*)SM_SIGNATURE, SIGNATURE_SIZE);
-  sign_enclave((void*)(report.enclave.signature), (void*)(report.enclave.hash));
-  report.enclave.nonce = nonce;
-
-  copy_to_host((void*)report_ptr, (void*)(&report), sizeof(struct report_t));
-
-  return 0;
-}
 /**
  * \brief host use this function to wake a stopped enclave.
  * 
@@ -1946,7 +1921,6 @@ destroy_enclave_out:
   //should wait after release enclave_metadata_lock to avoid deadlock
   if(need_free_enclave_memory)
   {
-    //TODO:
     free_enclave_memory(pma);
     free_all_relay_page(mm_arg_paddr, mm_arg_size);
   }

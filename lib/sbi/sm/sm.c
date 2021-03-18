@@ -1,5 +1,6 @@
 #include "sbi/riscv_atomic.h"
 #include "sbi/sbi_tvm.h"
+#include "sbi/sbi_console.h"
 #include "sm/sm.h"
 #include "sm/pmp.h"
 #include "sm/enclave.h"
@@ -987,9 +988,11 @@ uintptr_t sm_create_enclave(uintptr_t enclave_sbi_param)
  */
 uintptr_t sm_attest_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce)
 {
-  //TODO
+  uintptr_t retval;
 
-  return 0;
+  retval = attest_enclave(eid, report, nonce);
+
+  return retval;
 }
 
 /**
@@ -1077,8 +1080,11 @@ uintptr_t sm_destroy_enclave(uintptr_t *regs, uintptr_t enclave_id)
  */
 uintptr_t sm_attest_shadow_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce)
 {
-  //TODO
-  return 0;
+  uintptr_t retval;
+
+  retval = attest_shadow_enclave(eid, report, nonce);
+
+  return retval;
 }
 
 /**

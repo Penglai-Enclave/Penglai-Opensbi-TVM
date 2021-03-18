@@ -1,7 +1,7 @@
 #ifndef _ATTEST_H
 #define _ATTEST_H
 
-#include "enclave.h"
+#include "sm/enclave.h"
 
 void hash_enclave(struct enclave_t* enclave, void* hash, uintptr_t nonce);
 
