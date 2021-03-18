@@ -64,7 +64,7 @@ typedef enum
   SERVER_ENCLAVE = 1
 } enclave_type_t;
 
-struct enclave_create_param_t
+typedef struct enclave_create_param
 {
   unsigned int *eid_ptr;
   char name[NAME_LEN];
@@ -89,9 +89,9 @@ struct enclave_create_param_t
   unsigned long *ecall_arg1;
   unsigned long *ecall_arg2;
   unsigned long *ecall_arg3;
-};
+} enclave_create_param_t;
 
-struct shadow_enclave_run_param_t
+typedef struct shadow_enclave_run_param
 {
   unsigned long sptbr;
   unsigned long free_page;
@@ -112,7 +112,7 @@ struct shadow_enclave_run_param_t
   unsigned long *ecall_arg2;
   unsigned long *ecall_arg3;
   char name[NAME_LEN];
-};
+} shadow_enclave_run_param_t;
 
 #else
 
@@ -134,14 +134,14 @@ struct eapp_t {
   struct region_t regions[DEFAULT_EAPP_REGIONS_NUM];
 };
 
-struct enclave_create_param_t
+typedef struct enclave_create_param
 {
   unsigned long uuid;
   unsigned long *eid_ptr;
 
   unsigned long untrusted_ptr;
   unsigned long untrusted_size;
-};
+}enclave_create_param_t;
 
 struct init_enclave_create_param_t
 {

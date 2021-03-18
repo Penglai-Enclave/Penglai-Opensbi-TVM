@@ -1,9 +1,11 @@
+#include "sbi/sbi_console.h"
 #include "sm/sm.h"
 #include "sm/enclave.h"
 #include "sm/enclave_vm.h"
 #include "sm/server_enclave.h"
 #include "sm/ipi.h"
 #include "sm/relay_page.h"
+#include "sm/enclave_mm.h"
 
 /**************************************************************/
 /*                                 called by enclave                                                        */
@@ -201,5 +203,19 @@ uintptr_t split_mem_region(uintptr_t *regs, uintptr_t mem_addr_u, uintptr_t mem_
 failed:
   release_enclave_metadata_lock();
   sbi_bug("M MODE: split_mem_region: failed\n");
+  return ret;
+}
+
+int free_all_relay_page(unsigned long *mm_arg_paddr, unsigned long *mm_arg_size)
+{
+  int ret = 0;
+  for(int kk = 0; kk < RELAY_PAGE_NUM; kk++)
+  {
+    if (mm_arg_paddr[kk])
+    {
+      ret = __free_secure_memory(mm_arg_paddr[kk], mm_arg_size[kk]);
+      ret = __free_relay_page_entry(mm_arg_paddr[kk], mm_arg_size[kk]);
+    }
+  }
   return ret;
 }

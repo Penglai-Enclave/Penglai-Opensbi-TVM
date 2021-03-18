@@ -2,6 +2,7 @@
 #define _VM_H
 
 #include "sbi/riscv_encoding.h"
+#include "sbi/sbi_bitops.h"
 #include <stdint.h>
 
 #define MEGAPAGE_SIZE ((uintptr_t)(RISCV_PGSIZE << RISCV_PGLEVEL_BITS))

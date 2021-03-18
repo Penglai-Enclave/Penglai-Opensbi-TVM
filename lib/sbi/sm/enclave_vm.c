@@ -2,6 +2,7 @@
 // #include "mtrap.h"
 #include "sm/enclave_vm.h"
 #include "sbi/riscv_encoding.h"
+#include "sbi/sbi_console.h"
 
 //get the ppn from an pte entry
 static uintptr_t pte_ppn(pte_t pte)

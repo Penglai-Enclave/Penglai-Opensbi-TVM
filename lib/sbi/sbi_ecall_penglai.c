@@ -57,6 +57,9 @@ static int sbi_ecall_penglai_handler(unsigned long extid, unsigned long funcid,
     case SBI_DESTROY_ENCLAVE:
       retval = sm_destroy_enclave(args, arg0);
       break;
+    case SBI_ATTEST_ENCLAVE:
+      retval = sm_attest_enclave(arg0, arg1, arg2);
+      break;
     case SBI_CREATE_SERVER_ENCLAVE:
       retval = sm_create_server_enclave(arg0);
       break;
@@ -65,6 +68,9 @@ static int sbi_ecall_penglai_handler(unsigned long extid, unsigned long funcid,
       break;
     case SBI_RUN_SHADOW_ENCLAVE:
       retval = sm_run_shadow_enclave(args, arg0, arg1, arg2, arg3);
+      break;
+    case SBI_ATTEST_SHADOW_ENCLAVE:
+      retval = sm_attest_shadow_enclave(arg0, arg1, arg2);
       break;
     case SBI_DESTROY_SERVER_ENCLAVE:
       retval = sm_destroy_server_enclave(args, arg0);

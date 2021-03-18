@@ -5,6 +5,7 @@
 #include "sm/server_enclave.h"
 #include "sm/ipi.h"
 #include "sbi/sbi_string.h"
+#include "sbi/sbi_console.h"
 
 struct link_mem_t* server_enclave_head = NULL;
 struct link_mem_t* server_enclave_tail = NULL;
@@ -191,7 +192,7 @@ static struct server_enclave_t* __get_server_enclave_by_name(char* server_name)
  *
  * \param create_args The create argument using in the creating server enclave phase.
  */
-uintptr_t create_server_enclave(struct enclave_create_param_t create_args)
+uintptr_t create_server_enclave(enclave_create_param_t create_args)
 {
   struct enclave_t* enclave = NULL;
   struct server_enclave_t* server_enclave = NULL;
