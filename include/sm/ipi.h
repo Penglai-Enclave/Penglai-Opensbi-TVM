@@ -3,7 +3,7 @@
 
 #include "sbi/riscv_atomic.h"
 #include "sbi/riscv_locks.h"
-#include "stdint.h"
+#include "sbi/sbi_types.h"
 
 #define IPI_PMP_SYNC         0x1
 #define IPI_STOP_ENCLAVE     0x2

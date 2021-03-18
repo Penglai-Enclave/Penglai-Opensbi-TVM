@@ -3,7 +3,7 @@
 
 #include "sbi/riscv_encoding.h"
 #include "sbi/sbi_bitops.h"
-#include <stdint.h>
+#include "sbi/sbi_types.h"
 
 #define MEGAPAGE_SIZE ((uintptr_t)(RISCV_PGSIZE << RISCV_PGLEVEL_BITS))
 #if __riscv_xlen == 64
