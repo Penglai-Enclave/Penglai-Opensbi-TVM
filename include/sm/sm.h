@@ -1,7 +1,7 @@
 #ifndef _SM_H
 #define _SM_H
 
-#include <stdint.h>
+#include "sbi/sbi_types.h"
 #include "sm/enclave_args.h"
 #include "sm/ipi.h"
 

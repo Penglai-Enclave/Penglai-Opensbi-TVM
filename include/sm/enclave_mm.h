@@ -1,7 +1,7 @@
 #ifndef _ENCLAVE_MM_H
 #define _ENCLAVE_MM_H
 
-#include <stdint.h>
+#include "sbi/sbi_types.h"
 #include "sm/enclave.h"
 
 struct mm_region_list_t

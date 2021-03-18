@@ -3,7 +3,6 @@
 #include "sbi/riscv_asm.h"
 #include "sbi/sbi_pmp.h"
 #include "sbi/sbi_console.h"
-#include <stddef.h>
 
 /**
  * \brief Set pmp and sync all harts.

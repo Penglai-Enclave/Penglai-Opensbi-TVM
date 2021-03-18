@@ -7,10 +7,9 @@
 #include "sbi/riscv_locks.h"
 #include "sbi/sbi_string.h"
 #include "sbi/riscv_asm.h"
+#include "sbi/sbi_types.h"
 #include "sm/thread.h"
 #include "sm/vm.h"
-#include <stdint.h>
-#include <stddef.h>
 
 
 

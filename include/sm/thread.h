@@ -1,7 +1,7 @@
 #ifndef __THREAD_H__
 #define __THREAD_H__
 
-#include <stdint.h>
+#include "sbi/sbi_types.h"
 
 /// \brief define the number of general registers
 #define N_GENERAL_REGISTERS 32

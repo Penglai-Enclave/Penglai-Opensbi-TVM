@@ -1,7 +1,7 @@
 #ifndef _PMP_H
 #define _PMP_H
 
-#include <stdint.h>
+#include "sbi/sbi_types.h"
 #include "sbi/riscv_encoding.h"
 #include "sbi/sbi_hartmask.h"
 
