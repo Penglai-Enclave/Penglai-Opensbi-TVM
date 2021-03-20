@@ -201,6 +201,22 @@ static void sbi_tlb_local_flush(struct sbi_tlb_info *tinfo)
 	return;
 }
 
+static void sbi_eprocess_tlb_entry_process(struct sbi_tlb_info *tinfo)
+{
+	u32 rhartid;
+	struct sbi_scratch *rscratch = NULL;
+	unsigned long *rtlb_sync = NULL;
+
+	sbi_hartmask_for_each_hart(rhartid, &tinfo->smask) {
+		rscratch = sbi_hartid_to_scratch(rhartid);
+		if (!rscratch)
+			continue;
+
+		rtlb_sync = sbi_scratch_offset_ptr(rscratch, tlb_sync_off);
+		while (atomic_raw_xchg_ulong(rtlb_sync, 1)) ;
+	}
+}
+
 static void sbi_tlb_entry_process(struct sbi_tlb_info *tinfo)
 {
 	u32 rhartid;
@@ -243,6 +259,16 @@ static void sbi_tlb_process(struct sbi_scratch *scratch)
 
 	while (!sbi_fifo_dequeue(tlb_fifo, &tinfo))
 		sbi_tlb_entry_process(&tinfo);
+}
+
+static void sbi_eprocess_tlb_process(struct sbi_scratch *scratch, struct sbi_trap_regs* regs)
+{
+	struct sbi_tlb_info tinfo;
+	struct sbi_fifo *tlb_fifo =
+			sbi_scratch_offset_ptr(scratch, tlb_fifo_off);
+	
+	while (!sbi_fifo_dequeue(tlb_fifo, &tinfo))
+		sbi_eprocess_tlb_entry_process(&tinfo);
 }
 
 static void sbi_tlb_sync(struct sbi_scratch *scratch)
@@ -385,6 +411,7 @@ static struct sbi_ipi_event_ops tlb_ops = {
 	.update = sbi_tlb_update,
 	.sync = sbi_tlb_sync,
 	.process = sbi_tlb_process,
+	.e_process = sbi_eprocess_tlb_process,
 };
 
 static u32 tlb_event = SBI_IPI_EVENT_MAX;

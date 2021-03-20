@@ -15,6 +15,7 @@
 #include <sbi/sbi_tlb.h>
 
 int eapp_args = 0;
+extern int CPU_IN_CRITICAL;
 
 static struct cpu_state_t cpus[MAX_HARTS] = {{0,}, };
 
@@ -179,7 +180,7 @@ struct link_mem_t* init_mem_link(unsigned long mem_size, unsigned long slab_size
   if(resp_size <= sizeof(struct link_mem_t) + slab_size)
   {
     mm_free(head, resp_size);
-    sbi_debug("M mode: init_mem_link: The monitor has not reserved enough secure memory\n");
+    sbi_bug("M mode: init_mem_link: The monitor has not reserved enough secure memory\n");
     return NULL;
   }
 
@@ -409,7 +410,8 @@ int check_enclave_name(char *enclave_name, int target_eid)
       enclave = (struct enclave_t*)(cur->addr) + i;
       if((enclave->state > INVALID) &&(enclave_name_cmp(enclave_name, enclave->enclave_name)==0) && (target_eid != eid))
       {
-        sbi_bug("M mode: check enclave name: enclave name is already existed, enclave name is %s\n", enclave_name);
+        sbi_bug("M mode: check enclave name: enclave name is already existed, matched enclave name is %s and target enclave name is %s\n", enclave->enclave_name, enclave_name);
+        sbi_bug("M mode: target eid %d eid %d state %d\n", target_eid, eid, enclave->state);
         return -1;
       }
       eid++;
@@ -721,7 +723,7 @@ struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *sla
   //haven't alloc this eid 
   if(!found)
   {
-    sbi_bug("M mode: __get_relay_page_by_name: haven't alloc this enclave:%s\n", enclave_name);
+    sbi_printf("M mode: __get_relay_page_by_name: the relay page of this enclave is non-existed or already retrieved :%s\n", enclave_name);
     return NULL;
   }
 
@@ -861,7 +863,7 @@ static inline int tlb_remote_sfence()
 	u32 source_hart = current_hartid();
   SBI_TLB_INFO_INIT(&tlb_info, 0, 0, 0, 0,
 				  SBI_TLB_FLUSH_VMA, source_hart);
-	ret = sbi_tlb_request(0xFFFFFFFF&(~(1<<source_hart)), 0, &tlb_info);
+	ret = sbi_tlb_request(CPU_IN_CRITICAL&(~(1<<source_hart)), 0, &tlb_info);
   return ret;
 }
 
@@ -1079,9 +1081,6 @@ uintptr_t create_enclave(enclave_create_param_t create_args)
     goto failed;
   }
 
-  //Sync and flush the remote TLB entry.
-  tlb_remote_sfence();
-
   enclave = __alloc_enclave();
   if(!enclave)
   {
@@ -1148,6 +1147,9 @@ uintptr_t create_enclave(enclave_create_param_t create_args)
   hash_enclave(enclave, (void*)(enclave->hash), 0);
   copy_word_to_host((unsigned int*)create_args.eid_ptr, enclave->eid);
   release_enclave_metadata_lock();
+
+  //Sync and flush the remote TLB entry.
+  tlb_remote_sfence();
   return ret;
 
 failed:
@@ -1187,9 +1189,6 @@ uintptr_t create_shadow_enclave(enclave_create_param_t create_args)
     goto failed;
   }
 
-  //Sync and flush the remote TLB entry.
-  tlb_remote_sfence();
-
   need_free_secure_memory = 1;
   //check enclave memory layout
   if(check_enclave_layout(create_args.paddr + RISCV_PGSIZE, 0, -1UL, create_args.paddr, create_args.paddr + create_args.size) != 0)
@@ -1213,6 +1212,9 @@ uintptr_t create_shadow_enclave(enclave_create_param_t create_args)
   hash_shadow_enclave(shadow_enclave, (void*)(shadow_enclave->hash), 0);
   copy_word_to_host((unsigned int*)create_args.eid_ptr, shadow_enclave->eid);
   spin_unlock(&enclave_metadata_lock);
+  
+  //Sync and flush the remote TLB entry.
+  tlb_remote_sfence();
   return ret;
 
 failed:
@@ -1289,8 +1291,8 @@ uintptr_t map_relay_page(unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_a
     mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_MM_ARG_BASE, mm_arg_addr, mm_arg_size);
     
     //Sync and flush the remote TLB entry.
-    tlb_remote_sfence();
-    return 0;
+    // TODO:
+    // tlb_remote_sfence();
   }
 
   return retval;
@@ -1367,6 +1369,7 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
   enclave->state = RUNNING;
 run_enclave_out:
   release_enclave_metadata_lock();
+  tlb_remote_sfence();
   return retval;
 }
 
@@ -1472,9 +1475,8 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
   }
 
   copy_word_to_host((unsigned int*)enclave_run_param.eid_ptr, enclave->eid);
-
   //map the relay page
-  if((retval =map_relay_page(eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, relay_page_entry)) < 0)
+  if((retval =map_relay_page(enclave->eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, relay_page_entry)) < 0)
   {
     if (retval == ENCLAVE_NO_MEM)
       goto failed;
@@ -1515,10 +1517,11 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
   eapp_args = eapp_args+1;
 
   enclave->state = RUNNING;
-  sbi_printf("M mode: run shadow enclave...\n");
+  sbi_printf("M mode: run shadow enclave... arg[13]: %lx\n", enclave->mm_arg_paddr[0]);
 
 run_enclave_out:
   release_enclave_metadata_lock();
+  tlb_remote_sfence();
   return retval;
 
 failed:
@@ -1703,9 +1706,6 @@ uintptr_t mmap_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintptr_
     return retval;
   }
 
-  //Sync and flush the remote TLB entry.
-  tlb_remote_sfence();
-
   struct pm_area_struct *pma = (struct pm_area_struct*)paddr;
   struct vm_area_struct *vma = (struct vm_area_struct*)(paddr + sizeof(struct pm_area_struct));
   pma->paddr = paddr;
@@ -1752,9 +1752,6 @@ uintptr_t sbrk_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintptr_
     sbi_bug("M mode: sbrk_after_resume: check and set the secure memory is failed \n");
     return retval;
   }
-
-  //Sync and flush the remote TLB entry.
-  tlb_remote_sfence();
   
   struct pm_area_struct *pma = (struct pm_area_struct*)paddr;
   struct vm_area_struct *vma = (struct vm_area_struct*)(paddr + sizeof(struct pm_area_struct));
@@ -1794,6 +1791,7 @@ uintptr_t return_relay_page_after_resume(struct enclave_t *enclave, uintptr_t mm
   }
 
 run_enclave_out:
+  tlb_remote_sfence();
   return retval;
 }
 
@@ -1861,6 +1859,8 @@ uintptr_t resume_from_ocall(uintptr_t* regs, unsigned int eid)
 
 out:
   release_enclave_metadata_lock();
+  if ((ocall_func_id == OCALL_MMAP) || (ocall_func_id == OCALL_SBRK)) 
+    tlb_remote_sfence();
   return retval;
 }
 

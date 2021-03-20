@@ -15,6 +15,11 @@
 #include "sm/enclave.h"
 #include "sm/sm.h"
 
+int CPU_IN_CRITICAL=0xFFFFFFFF;
+
+#define REMOVE_CPU_FROM_NOTIFICATION(hartid) CPU_IN_CRITICAL&(~(1<<hartid))
+#define CPU_ENABLE_NOTIFICATION(hartid) CPU_IN_CRITICAL|(hartid)
+
 u16 sbi_ecall_version_major(void)
 {
 	return SBI_ECALL_VERSION_MAJOR;
@@ -105,6 +110,7 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 		return 0;
 	}
 
+	CPU_IN_CRITICAL = REMOVE_CPU_FROM_NOTIFICATION(current_hartid());
 	uintptr_t n = regs->a7;
 	csr_write(CSR_MEPC, regs->mepc + 4);
 	uintptr_t arg0 = regs->a0, arg1 = regs->a1, arg2 = regs->a2;
@@ -138,6 +144,8 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 			retval = SBI_ERR_FAILED;
 			break;
 	}
+	
+	CPU_IN_CRITICAL = CPU_ENABLE_NOTIFICATION(current_hartid());
 	regs->a0 = retval;
 	if (!cpu_in_enclave(csr_read(CSR_MHARTID)))
 	{
@@ -185,8 +193,11 @@ int sbi_ecall_handler(struct sbi_trap_regs *regs)
 	}
 	else
 	{
+		CPU_IN_CRITICAL = REMOVE_CPU_FROM_NOTIFICATION(current_hartid());
 		ret = ext->handle(extension_id, func_id,
 					(unsigned long *)regs, &out_val, &trap);
+		CPU_IN_CRITICAL = CPU_ENABLE_NOTIFICATION(current_hartid());
+
 	}
 	
 

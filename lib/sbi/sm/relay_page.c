@@ -148,7 +148,7 @@ uintptr_t split_mem_region(uintptr_t *regs, uintptr_t mem_addr_u, uintptr_t mem_
   }
   if((split_addr_u < mem_addr_u) || (split_addr_u > (mem_addr_u + mem_size)))
   {
-    sbi_bug("M mode: split_mem_region: split address is not in the relay page region \n");
+    sbi_bug("M mode: split_mem_region: split address is not in the relay page region, split_addr_u: %lx, mem_addr_u %lx, upper_bound_addre %lx\n", split_addr_u, mem_addr_u, (mem_addr_u + mem_size));
     ret = -1UL;
     goto failed;
   }
@@ -168,7 +168,6 @@ uintptr_t split_mem_region(uintptr_t *regs, uintptr_t mem_addr_u, uintptr_t mem_
       //add the adjusted relay page entry in the global link memory
       __alloc_relay_page_entry(enclave->enclave_name, enclave->mm_arg_paddr[kk], enclave->mm_arg_size[kk]);
       //find the empty relay page entry for this enclave 
-      sbi_bug("M mode: split_mem_region1: split addr %lx split size %lx \n", enclave->mm_arg_paddr[kk], enclave->mm_arg_size[kk]);
       for(int jj = kk; jj < RELAY_PAGE_NUM; jj++)
       {
         if ((enclave->mm_arg_paddr[jj] == 0) && (enclave->mm_arg_size[jj] == 0))
