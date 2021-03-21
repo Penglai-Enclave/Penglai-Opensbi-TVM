@@ -16,6 +16,9 @@
 #include "sm/sm.h"
 
 int CPU_IN_CRITICAL=0xFFFFFFFF;
+int CPU_NEED_FLUSH[MAX_HARTS] = {0, };
+
+static spinlock_t cpu_in_critical_lock = SPINLOCK_INIT;
 
 #define REMOVE_CPU_FROM_NOTIFICATION(hartid) CPU_IN_CRITICAL&(~(1<<hartid))
 #define CPU_ENABLE_NOTIFICATION(hartid) CPU_IN_CRITICAL|(hartid)
@@ -110,7 +113,9 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 		return 0;
 	}
 
+	spin_lock(&cpu_in_critical_lock);
 	CPU_IN_CRITICAL = REMOVE_CPU_FROM_NOTIFICATION(current_hartid());
+	spin_unlock(&cpu_in_critical_lock);
 	uintptr_t n = regs->a7;
 	csr_write(CSR_MEPC, regs->mepc + 4);
 	uintptr_t arg0 = regs->a0, arg1 = regs->a1, arg2 = regs->a2;
@@ -144,8 +149,13 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 			retval = SBI_ERR_FAILED;
 			break;
 	}
-	
+
+	spin_lock(&cpu_in_critical_lock);
 	CPU_IN_CRITICAL = CPU_ENABLE_NOTIFICATION(current_hartid());
+	spin_unlock(&cpu_in_critical_lock);
+	if (CPU_NEED_FLUSH[current_hartid()] == 1)
+		__asm__ __volatile__ ("sfence.vma" : : : "memory");
+		
 	regs->a0 = retval;
 	if (!cpu_in_enclave(csr_read(CSR_MHARTID)))
 	{
@@ -197,7 +207,8 @@ int sbi_ecall_handler(struct sbi_trap_regs *regs)
 		ret = ext->handle(extension_id, func_id,
 					(unsigned long *)regs, &out_val, &trap);
 		CPU_IN_CRITICAL = CPU_ENABLE_NOTIFICATION(current_hartid());
-
+		if (CPU_NEED_FLUSH[current_hartid()] == 1)
+			__asm__ __volatile__ ("sfence.vma" : : : "memory");
 	}
 	
 

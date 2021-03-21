@@ -175,7 +175,7 @@ uintptr_t split_mem_region(uintptr_t *regs, uintptr_t mem_addr_u, uintptr_t mem_
           //add the new splitted relay page entry in the enclave metadata
           enclave->mm_arg_paddr[jj] = split_addr;
           enclave->mm_arg_size[jj] = split_size;
-          sbi_printf("M mode: split_mem_region2: split addr %lx split size %lx \n", enclave->mm_arg_paddr[jj], enclave->mm_arg_size[jj]);
+          // sbi_printf("M mode: split_mem_region2: split addr %lx split size %lx \n", enclave->mm_arg_paddr[jj], enclave->mm_arg_size[jj]);
           __alloc_relay_page_entry(enclave->enclave_name, enclave->mm_arg_paddr[jj], enclave->mm_arg_size[jj]);
           found_empty_entry = 1;
           break;

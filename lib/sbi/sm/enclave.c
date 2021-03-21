@@ -16,6 +16,7 @@
 
 int eapp_args = 0;
 extern int CPU_IN_CRITICAL;
+extern int CPU_NEED_FLUSH[MAX_HARTS];
 
 static struct cpu_state_t cpus[MAX_HARTS] = {{0,}, };
 
@@ -806,6 +807,7 @@ static int swap_from_host_to_enclave(uintptr_t* host_regs, struct enclave_t* enc
   enter_enclave_world(enclave->eid);
 
   __asm__ __volatile__ ("sfence.vma" : : : "memory");
+  CPU_NEED_FLUSH[current_hartid()] = 0;
 
   return 0;
 }
@@ -852,10 +854,14 @@ static int swap_from_enclave_to_host(uintptr_t* regs, struct enclave_t* enclave)
   exit_enclave_world();
 
   __asm__ __volatile__ ("sfence.vma" : : : "memory");
+  CPU_NEED_FLUSH[current_hartid()] = 0;
 
   return 0;
 }
 
+// TODO:
+// There is a concurrent bug in remote tlb flush, we will fix it soon
+// Do not use in any commercial products until we totally fix it.
 static inline int tlb_remote_sfence()
 {
   int ret;
@@ -863,6 +869,11 @@ static inline int tlb_remote_sfence()
 	u32 source_hart = current_hartid();
   SBI_TLB_INFO_INIT(&tlb_info, 0, 0, 0, 0,
 				  SBI_TLB_FLUSH_VMA, source_hart);
+  for (int i=0; i<MAX_HARTS; i++)
+  {
+    if ((CPU_IN_CRITICAL & (1<<i)) == 0)
+      CPU_NEED_FLUSH[i] = 1;
+  }
 	ret = sbi_tlb_request(CPU_IN_CRITICAL&(~(1<<source_hart)), 0, &tlb_info);
   return ret;
 }
@@ -927,6 +938,7 @@ static int __enclave_call(uintptr_t* regs, struct enclave_t* top_caller_enclave,
   callee_enclave->top_caller_eid = top_caller_enclave->eid;
 
   __asm__ __volatile__ ("sfence.vma" : : : "memory");
+  CPU_NEED_FLUSH[current_hartid()] = 0;
 
   return 0;
 }
@@ -978,6 +990,7 @@ static int __enclave_return(uintptr_t* regs, struct enclave_t* callee_enclave, s
   callee_enclave->top_caller_eid = -1;
 
   __asm__ __volatile__ ("sfence.vma" : : : "memory");
+  CPU_NEED_FLUSH[current_hartid()] = 0;
 
   return 0;
 }
@@ -1149,7 +1162,7 @@ uintptr_t create_enclave(enclave_create_param_t create_args)
   release_enclave_metadata_lock();
 
   //Sync and flush the remote TLB entry.
-  tlb_remote_sfence();
+  // tlb_remote_sfence();
   return ret;
 
 failed:
@@ -1214,7 +1227,7 @@ uintptr_t create_shadow_enclave(enclave_create_param_t create_args)
   spin_unlock(&enclave_metadata_lock);
   
   //Sync and flush the remote TLB entry.
-  tlb_remote_sfence();
+  // tlb_remote_sfence();
   return ret;
 
 failed:
@@ -1290,9 +1303,6 @@ uintptr_t map_relay_page(unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_a
     *mmap_offset = mm_arg_size;
     mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_MM_ARG_BASE, mm_arg_addr, mm_arg_size);
     
-    //Sync and flush the remote TLB entry.
-    // TODO:
-    // tlb_remote_sfence();
   }
 
   return retval;
@@ -1369,7 +1379,7 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
   enclave->state = RUNNING;
 run_enclave_out:
   release_enclave_metadata_lock();
-  tlb_remote_sfence();
+  // tlb_remote_sfence();
   return retval;
 }
 
@@ -1517,11 +1527,12 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
   eapp_args = eapp_args+1;
 
   enclave->state = RUNNING;
-  sbi_printf("M mode: run shadow enclave... arg[13]: %lx\n", enclave->mm_arg_paddr[0]);
+  sbi_debug("M mode: run shadow enclave mm_arg %lx mm_size %lx...\n", regs[13], regs[14]);
+  sbi_printf("M mode: run shadow enclave...\n");
 
 run_enclave_out:
   release_enclave_metadata_lock();
-  tlb_remote_sfence();
+  // tlb_remote_sfence();
   return retval;
 
 failed:
@@ -1791,7 +1802,7 @@ uintptr_t return_relay_page_after_resume(struct enclave_t *enclave, uintptr_t mm
   }
 
 run_enclave_out:
-  tlb_remote_sfence();
+  // tlb_remote_sfence();
   return retval;
 }
 
@@ -1859,8 +1870,8 @@ uintptr_t resume_from_ocall(uintptr_t* regs, unsigned int eid)
 
 out:
   release_enclave_metadata_lock();
-  if ((ocall_func_id == OCALL_MMAP) || (ocall_func_id == OCALL_SBRK)) 
-    tlb_remote_sfence();
+  // if ((ocall_func_id == OCALL_MMAP) || (ocall_func_id == OCALL_SBRK)) 
+    // tlb_remote_sfence();
   return retval;
 }
 
