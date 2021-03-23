@@ -27,6 +27,7 @@
   enclave->ocall_arg0 = ((struct_type)create_args)->ecall_arg1; \
   enclave->ocall_arg1 = ((struct_type)create_args)->ecall_arg2; \
   enclave->ocall_syscall_num = ((struct_type)create_args)->ecall_arg3; \
+  enclave->retval = ((struct_type)create_args)->retval; \
   enclave->kbuffer = ((struct_type)create_args)->kbuffer; \
   enclave->kbuffer_size = ((struct_type)create_args)->kbuffer_size; \
   enclave->shm_paddr = ((struct_type)create_args)->shm_paddr; \
@@ -131,6 +132,7 @@ struct enclave_t
   unsigned long* ocall_arg0;
   unsigned long* ocall_arg1;
   unsigned long* ocall_syscall_num;
+  unsigned long* retval;
 
   // enclave thread context
   // TODO: support multiple threads

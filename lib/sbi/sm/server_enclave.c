@@ -245,6 +245,7 @@ uintptr_t create_server_enclave(enclave_create_param_t create_args)
   enclave->ocall_arg0 = create_args.ecall_arg1;
   enclave->ocall_arg1 = create_args.ecall_arg2;
   enclave->ocall_syscall_num = create_args.ecall_arg3;
+  //enclave->retval = create_args.retval;
   enclave->host_ptbr = csr_read(CSR_SATP);
   enclave->root_page_table = create_args.paddr + RISCV_PGSIZE;
   enclave->thread_context.encl_ptbr = ((create_args.paddr+RISCV_PGSIZE) >> RISCV_PGSHIFT) | SATP_MODE_CHOICE;

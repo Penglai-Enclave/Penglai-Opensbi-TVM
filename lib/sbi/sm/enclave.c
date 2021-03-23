@@ -278,7 +278,8 @@ struct enclave_t* __alloc_enclave()
     enclave_metadata_head = init_mem_link(ENCLAVE_METADATA_REGION_SIZE, sizeof(struct enclave_t));
     if(!enclave_metadata_head)
     {
-      sbi_printf("M mode: __alloc_enclave: don't have enough mempry\n");
+      //commented by luxu
+      //sbi_printf("M mode: __alloc_enclave: don't have enough mempry\n");
       goto alloc_eid_out;
     }
     enclave_metadata_tail = enclave_metadata_head;
@@ -436,7 +437,8 @@ static struct shadow_enclave_t* __alloc_shadow_enclave()
     shadow_enclave_metadata_head = init_mem_link(SHADOW_ENCLAVE_METADATA_REGION_SIZE, sizeof(struct shadow_enclave_t));
     if(!shadow_enclave_metadata_head)
     {
-      sbi_printf("M mode: __alloc_enclave: don't have enough memory\n");
+      //commented by luxu
+      //sbi_printf("M mode: __alloc_enclave: don't have enough memory\n");
       goto alloc_eid_out;
     }
     shadow_enclave_metadata_tail = shadow_enclave_metadata_head;
@@ -724,7 +726,8 @@ struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *sla
   //haven't alloc this eid 
   if(!found)
   {
-    sbi_printf("M mode: __get_relay_page_by_name: the relay page of this enclave is non-existed or already retrieved :%s\n", enclave_name);
+    //commented by luxu
+    //sbi_printf("M mode: __get_relay_page_by_name: the relay page of this enclave is non-existed or already retrieved :%s\n", enclave_name);
     return NULL;
   }
 
@@ -897,6 +900,7 @@ static int __enclave_call(uintptr_t* regs, struct enclave_t* top_caller_enclave,
   callee_enclave->ocall_arg0 = caller_enclave->ocall_arg0;
   callee_enclave->ocall_arg1 = caller_enclave->ocall_arg1;
   callee_enclave->ocall_syscall_num = caller_enclave->ocall_syscall_num; 
+  //callee_enclave->retval = caller_enclave->retval;
 
   //save caller's enclave context on its prev_state
   swap_prev_state(&(caller_enclave->thread_context), regs);
@@ -973,6 +977,7 @@ static int __enclave_return(uintptr_t* regs, struct enclave_t* callee_enclave, s
   callee_enclave->ocall_arg0 = NULL;
   callee_enclave->ocall_arg1 = NULL;
   callee_enclave->ocall_syscall_num = NULL;
+  callee_enclave->retval = NULL;
 
   //different platforms have differnt ptbr switch methods
   switch_to_enclave_ptbr(&(caller_enclave->thread_context), caller_enclave->thread_context.encl_ptbr);
@@ -1098,7 +1103,8 @@ uintptr_t create_enclave(enclave_create_param_t create_args)
   if(!enclave)
   {
     ret = ENCLAVE_NO_MEM;
-    sbi_printf("M mode: %s: alloc enclave is failed \n", __func__);
+    //commented by luxu
+    //sbi_printf("M mode: %s: alloc enclave is failed \n", __func__);
     goto failed;
   }
 
@@ -1213,7 +1219,8 @@ uintptr_t create_shadow_enclave(enclave_create_param_t create_args)
   shadow_enclave = __alloc_shadow_enclave();
   if(!shadow_enclave)
   {
-    sbi_bug("M mode: create shadow enclave: no enough memory to alloc_shadow_enclave\n");
+    //commented by luxu
+    //sbi_pirntf("M mode: create shadow enclave: no enough memory to alloc_shadow_enclave\n");
     ret = ENCLAVE_NO_MEM;
     goto failed;
   }
@@ -1287,7 +1294,8 @@ uintptr_t map_relay_page(unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_a
     }
     if (__alloc_relay_page_entry(enclave->enclave_name, mm_arg_addr, mm_arg_size) ==NULL)
     {
-      sbi_printf("M mode: map_relay_page: lack of the secure memory for the relay page entries\n");
+      //commented by luxu
+      //sbi_printf("M mode: map_relay_page: lack of the secure memory for the relay page entries\n");
       retval = ENCLAVE_NO_MEM;
       return retval;
     }
@@ -1527,8 +1535,10 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
   eapp_args = eapp_args+1;
 
   enclave->state = RUNNING;
-  sbi_debug("M mode: run shadow enclave mm_arg %lx mm_size %lx...\n", regs[13], regs[14]);
-  sbi_printf("M mode: run shadow enclave...\n");
+
+  //commented by luxu
+  //sbi_debug("M mode: run shadow enclave mm_arg %lx mm_size %lx...\n", regs[13], regs[14]);
+  //sbi_printf("M mode: run shadow enclave...\n");
 
 run_enclave_out:
   release_enclave_metadata_lock();
@@ -1971,6 +1981,10 @@ uintptr_t exit_enclave(uintptr_t* regs, unsigned long enclave_retval)
     ret = -1UL;
     goto exit_enclave_out;
   }
+
+  //copy enclave retval
+  copy_dword_to_host((uintptr_t*)enclave->retval, enclave_retval);
+
   swap_from_enclave_to_host(regs, enclave);
 
   pma = enclave->pma_list;

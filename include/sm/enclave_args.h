@@ -89,6 +89,7 @@ typedef struct enclave_create_param
   unsigned long *ecall_arg1;
   unsigned long *ecall_arg2;
   unsigned long *ecall_arg3;
+  unsigned long *retval;
 } enclave_create_param_t;
 
 typedef struct shadow_enclave_run_param
@@ -111,6 +112,7 @@ typedef struct shadow_enclave_run_param
   unsigned long *ecall_arg1;
   unsigned long *ecall_arg2;
   unsigned long *ecall_arg3;
+  unsigned long *retval;
   char name[NAME_LEN];
 } shadow_enclave_run_param_t;
 
