@@ -656,6 +656,7 @@ int __free_relay_page_entry(unsigned long relay_page_addr, unsigned long relay_p
   struct relay_page_entry_t *relay_page_entry = NULL;
   int found = 0, ret_val = 0;
 
+  // sbi_printf("free relay page address %lx relay_page_size %lx\n", relay_page_addr, relay_page_size);
   for(cur = relay_page_head; cur != NULL; cur = cur->next_link_mem)
   {
     for(int i = 0; i < (cur->slab_num); i++)
@@ -734,6 +735,41 @@ struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *sla
   return relay_page_entry;
 }
 
+struct relay_page_entry_t* __list_relay_page_by_name()
+{
+  struct link_mem_t *cur;
+  struct relay_page_entry_t *relay_page_entry = NULL;
+  int i, found=0;
+
+  cur = relay_page_head;
+  
+  i = 0;
+  for(; cur != NULL; cur = cur->next_link_mem)
+  {
+    for(; i < (cur->slab_num); ++i)
+    {
+      relay_page_entry = (struct relay_page_entry_t*)(cur->addr) + i;
+      if((relay_page_entry->addr != 0) && enclave_name_cmp(relay_page_entry->enclave_name, "")!=0)
+      {
+        sbi_printf("relay page name %s address %lx size %lx\n", relay_page_entry->enclave_name, relay_page_entry->addr, relay_page_entry->size);
+      }
+    }
+    if(found)
+      break;
+    i=0;
+  }
+
+  //haven't alloc this eid 
+  if(!found)
+  {
+    //commented by luxu
+    //sbi_printf("M mode: __get_relay_page_by_name: the relay page of this enclave is non-existed or already retrieved :%s\n", enclave_name);
+    return NULL;
+  }
+
+  return relay_page_entry;
+}
+
 /**
  * \brief  Change the relay page ownership, delete the old relay page entry in the link memory
  * and add an entry with new ownership .
@@ -758,7 +794,7 @@ uintptr_t change_relay_page_ownership(unsigned long relay_page_addr, unsigned lo
   {
     sbi_bug("M mode: change_relay_page_ownership: can not alloc relay page entry, addr is %lx\n", relay_page_addr);
   }
-
+  // sbi_printf("reducer name %s, address %lx\n", enclave_name, relay_page_addr);
   return ret_val;
 }
 
@@ -1220,7 +1256,7 @@ uintptr_t create_shadow_enclave(enclave_create_param_t create_args)
   if(!shadow_enclave)
   {
     //commented by luxu
-    //sbi_pirntf("M mode: create shadow enclave: no enough memory to alloc_shadow_enclave\n");
+    // sbi_printf("M mode: create shadow enclave: no enough memory to alloc_shadow_enclave\n");
     ret = ENCLAVE_NO_MEM;
     goto failed;
   }
@@ -1295,7 +1331,7 @@ uintptr_t map_relay_page(unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_a
     if (__alloc_relay_page_entry(enclave->enclave_name, mm_arg_addr, mm_arg_size) ==NULL)
     {
       //commented by luxu
-      //sbi_printf("M mode: map_relay_page: lack of the secure memory for the relay page entries\n");
+      // sbi_printf("M mode: map_relay_page: lack of the secure memory for the relay page entries\n");
       retval = ENCLAVE_NO_MEM;
       return retval;
     }
@@ -1502,6 +1538,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
       goto run_enclave_out;
   }
 
+  // __list_relay_page_by_name();
   if(swap_from_host_to_enclave(regs, enclave) < 0)
   {
     sbi_bug("M mode: run_shadow_enclave: enclave can not be run\n");
@@ -1537,7 +1574,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
   enclave->state = RUNNING;
 
   //commented by luxu
-  //sbi_debug("M mode: run shadow enclave mm_arg %lx mm_size %lx...\n", regs[13], regs[14]);
+  // sbi_debug("M mode: run shadow enclave mm_arg %lx mm_size %lx...\n", regs[13], regs[14]);
   //sbi_printf("M mode: run shadow enclave...\n");
 
 run_enclave_out:
@@ -1999,12 +2036,14 @@ uintptr_t exit_enclave(uintptr_t* regs, unsigned long enclave_retval)
   __free_enclave(eid);
 
 exit_enclave_out:
+  // __list_relay_page_by_name();
 
   if(need_free_enclave_memory)
   {
     free_enclave_memory(pma);
     free_all_relay_page(mm_arg_paddr, mm_arg_size);
   }
+  // __list_relay_page_by_name();
   release_enclave_metadata_lock();
   return ret;
 }

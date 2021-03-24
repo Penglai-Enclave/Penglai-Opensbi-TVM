@@ -440,7 +440,8 @@ uintptr_t sm_split_huge_page(unsigned long paddr, unsigned long size, uintptr_t 
     if(!IS_PGD(*pte) && PTE_VALID(*pte))
     {
       uintptr_t pfn = PTE_TO_PFN(*pte);
-      if( ((unsigned long)pte >= pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) && ((unsigned long)pte < pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE)
+      if( ((unsigned long)pte >= pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) 
+      && ((unsigned long)pte < pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE)
       &&IS_LEAF_PTE(*pte))
       {
         if(pfn >= pfn_end || (pfn+RISCV_PTENUM )<= pfn_base)
@@ -458,7 +459,7 @@ uintptr_t sm_split_huge_page(unsigned long paddr, unsigned long size, uintptr_t 
         {
           split_pmd_local.pte_addr = (unsigned long)pte;
           split_pmd_local.pte = *pte;
-	  break;
+	        break;
         }
       }
     }

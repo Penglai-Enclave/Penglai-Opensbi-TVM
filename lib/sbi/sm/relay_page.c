@@ -59,10 +59,8 @@ uintptr_t transfer_relay_page(struct enclave_t *enclave, unsigned long relay_pag
     ret = -1UL;
     sbi_bug("M mode: transfer_relay_page: change relay page ownership failed\n");
   }
-  release_enclave_metadata_lock();
   return ret;
 failed:
-  release_enclave_metadata_lock();
   sbi_bug("M MODE: transfer_relay_page: failed\n");
   return ret;
 }
@@ -106,9 +104,12 @@ uintptr_t asyn_enclave_call(uintptr_t* regs, uintptr_t enclave_name, uintptr_t a
     sbi_bug("M mode: asyn_enclave_call: transfer relay page is failed\n");
     goto failed;
   }
+  
   release_enclave_metadata_lock();
   return ret;
+
 failed:
+  
   release_enclave_metadata_lock();
   sbi_bug("M MODE: asyn_enclave_call: failed\n");
   return ret;
