@@ -73,13 +73,13 @@ static void sbi_trap_error(const char *msg, int rc,
 	sbi_printf("%s: hart%d: %s=0x%" PRILX "\n", __func__, hartid, "t6",
 		   regs->t6);
 
-	if(check_in_enclave_world() == 0)
-	{
-		destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
-		regs->mepc = csr_read(CSR_MEPC);
-		regs->mstatus = csr_read(CSR_MSTATUS);
-		return;
-	}
+	// if(check_in_enclave_world() == 0)
+	// {
+	// 	destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
+	// 	regs->mepc = csr_read(CSR_MEPC);
+	// 	regs->mstatus = csr_read(CSR_MSTATUS);
+	// 	return;
+	// }
 	sbi_hart_hang();
 	return;
 }

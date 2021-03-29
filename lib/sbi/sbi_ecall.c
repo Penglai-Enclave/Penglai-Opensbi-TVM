@@ -145,6 +145,9 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 		case SBI_SPLIT_MEM_REGION:
 			retval = sm_split_mem_region((uintptr_t*)regs, arg0, arg1, arg2);
 			break;
+		case SBI_YIELD:
+			retval = sm_handle_yield((uintptr_t*)regs);
+			break;
 		default:
 			retval = SBI_ERR_FAILED;
 			break;

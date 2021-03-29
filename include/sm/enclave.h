@@ -228,7 +228,7 @@ uintptr_t enclave_read_sec(uintptr_t *regs, uintptr_t sec);
 uintptr_t enclave_write_sec(uintptr_t *regs, uintptr_t sec);
 uintptr_t enclave_return_relay_page(uintptr_t *regs);
 uintptr_t do_timer_irq(uintptr_t* regs, uintptr_t mcause, uintptr_t mepc);
-uintptr_t do_yield(uintptr_t* regs, uintptr_t mcause, uintptr_t mepc);
+uintptr_t do_yield(uintptr_t* regs);
 uintptr_t ipi_stop_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid);
 uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid);
 

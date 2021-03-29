@@ -135,7 +135,7 @@ uintptr_t sm_split_mem_region(uintptr_t *regs, uintptr_t mem_addr, uintptr_t mem
 
 //called when timer irq
 uintptr_t sm_do_timer_irq(uintptr_t *regs, uintptr_t mcause, uintptr_t mepc);
-uintptr_t sm_handle_yield(uintptr_t *regs, uintptr_t mcause, uintptr_t mepc);
+uintptr_t sm_handle_yield(uintptr_t *regs);
 
 uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size);
 

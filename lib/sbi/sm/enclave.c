@@ -1412,13 +1412,15 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
     regs[10] = 0;
   retval = regs[10];
   regs[11] = enclave->shm_size;
-  regs[12] = 1;
+  regs[12] = eapp_args;
   if(enclave->mm_arg_paddr[0])
     regs[13] = ENCLAVE_DEFAULT_MM_ARG_BASE;
   else
     regs[13] = 0;
   regs[14] = mmap_offset;
+  // sbi_debug("enclave %d mpec %lx running\n", eapp_args, (enclave->entry_point));
   eapp_args = eapp_args+1;
+
 
   enclave->state = RUNNING;
 run_enclave_out:
@@ -2593,7 +2595,7 @@ timer_irq_out:
  * \param mcause CSR register of mcause.
  * \param mepc CSR register of the mepc.
  */
-uintptr_t do_yield(uintptr_t *regs, uintptr_t mcause, uintptr_t mepc)
+uintptr_t do_yield(uintptr_t *regs)
 {
   uintptr_t retval = 0;
   unsigned int eid = get_curr_enclave_id();

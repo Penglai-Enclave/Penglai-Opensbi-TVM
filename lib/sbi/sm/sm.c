@@ -423,51 +423,9 @@ uintptr_t sm_map_pte(uintptr_t* pmd, uintptr_t* new_pte_addr)
  */
 uintptr_t sm_split_huge_page(unsigned long paddr, unsigned long size, uintptr_t split_pmd)
 {
-  struct pt_entry_t split_pmd_local;
+  //This function is removed from the monitor
   uintptr_t retval = 0;
-  retval = copy_from_host(&split_pmd_local,
-      (struct pt_entry_t*)split_pmd,
-      sizeof(struct pt_entry_t));
-  if(paddr < (uintptr_t)DRAM_BASE /*|| (paddr + size) > */)
-    return -1;
-  uintptr_t _pfn = PADDR_TO_PFN(paddr) - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-  uintptr_t pfn_base = PADDR_TO_PFN((uintptr_t)DRAM_BASE) + _pfn;
-  uintptr_t pfn_end = PADDR_TO_PFN(paddr + size);
-  uintptr_t *pte = (uintptr_t*)pt_area_base;
-  uintptr_t *pte_end = (uintptr_t*)(pt_area_base + pt_area_size);
-  while(pte < pte_end)
-  {
-    if(!IS_PGD(*pte) && PTE_VALID(*pte))
-    {
-      uintptr_t pfn = PTE_TO_PFN(*pte);
-      if( ((unsigned long)pte >= pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) 
-      && ((unsigned long)pte < pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE)
-      &&IS_LEAF_PTE(*pte))
-      {
-        if(pfn >= pfn_end || (pfn+RISCV_PTENUM )<= pfn_base)
-        {
-          //There is no  overlap between the  pmd region and remap region
-          pte += 1;
-          continue;
-        }
-        else if(pfn_base<=pfn && pfn_end>=(pfn+RISCV_PTENUM))
-        {
-          pte += 1;
-          continue;
-        }
-        else
-        {
-          split_pmd_local.pte_addr = (unsigned long)pte;
-          split_pmd_local.pte = *pte;
-	        break;
-        }
-      }
-    }
-    pte += 1;
-  }
-  retval = copy_to_host((struct pt_entry_t*)split_pmd,
-      &split_pmd_local,
-      sizeof(struct pt_entry_t));
+
   return retval;
 }
 
@@ -518,7 +476,7 @@ int unmap_mm_region(unsigned long paddr, unsigned long size)
   }
   uintptr_t pfn_base = PADDR_TO_PFN((uintptr_t)DRAM_BASE) + _pfn;
   uintptr_t pfn_end = PADDR_TO_PFN(paddr + size);
-  uintptr_t *pte = (uintptr_t*)pt_area_base;
+  uintptr_t *pte = (uintptr_t*)(pt_area_base + (1<<pgd_order)*RISCV_PGSIZE);
   uintptr_t *pte_end = (uintptr_t*)(pt_area_base + pt_area_size);
 
   while(pte < pte_end)
@@ -526,8 +484,7 @@ int unmap_mm_region(unsigned long paddr, unsigned long size)
     if(!IS_PGD(*pte) && PTE_VALID(*pte))
     {
       uintptr_t pfn = PTE_TO_PFN(*pte);
-      if( ((unsigned long)pte >= pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) 
-		      && ((unsigned long)pte < pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE)
+      if(((unsigned long)pte < pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE)
 		      && IS_LEAF_PTE(*pte))
       {
         if(pfn >= pfn_end || (pfn+RISCV_PTENUM )<= pfn_base)
@@ -602,14 +559,14 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
   //Slow path
   uintptr_t pfn_base = PADDR_TO_PFN((uintptr_t)DRAM_BASE) + _pfn;
   uintptr_t pfn_end = PADDR_TO_PFN(paddr + size);
-  uintptr_t *pte = (uintptr_t*)pt_area_base;
+  uintptr_t *pte = (uintptr_t*)(pt_area_base + (1<<pgd_order)*RISCV_PGSIZE);
   uintptr_t *pte_end = (uintptr_t*)(pt_area_base + pt_area_size);
   while(pte < pte_end)
   {
     if(!IS_PGD(*pte))
     {
       uintptr_t pfn = PTE_TO_PFN(*pte);
-      if( ((unsigned long)pte >= pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) && ((unsigned long)pte < pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE))
+      if(((unsigned long)pte < pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE))
       {
         if(pfn >= pfn_end || (pfn+RISCV_PTENUM )<= pfn_base)
         {
@@ -735,12 +692,12 @@ int set_single_pte(uintptr_t *pte_dest, uintptr_t pte_src)
     *pte_dest = pte_src;
   }
   
-
   return 0;
 }
 
 /**
  * \brief Check whether the page table entry located in the legitimate location.
+ * This check can be done in the hardware.
  * 
  * \param pte_addr The address of the pte entry.
  * \param pte_src The value of the pte entry.
@@ -750,7 +707,7 @@ int check_pt_location(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src)
 {
   if((pt_area_base < pte_addr) && ((pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) > pte_addr))
   {
-    if (((pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) > pa) || ((pt_area_base + ((1<<pgd_order) + (1<<pmd_order))*RISCV_PGSIZE) < pa) )
+    if(((pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) > pa) || ((pt_area_base + ((1<<pgd_order) + (1<<pmd_order))*RISCV_PGSIZE) < pa) )
     {
       sbi_printf("pt_area_base %lx pte_addr %lx pa %lx", pt_area_base, pte_addr, pa);
       sbi_bug("M mode: invalid pt location\r\n");
@@ -1230,11 +1187,11 @@ uintptr_t sm_do_timer_irq(uintptr_t *regs, uintptr_t mcause, uintptr_t mepc)
  * \param mcause CSR mcause value.
  * \param mepc CSR mepc value.
  */
-uintptr_t sm_handle_yield(uintptr_t *regs, uintptr_t mcause, uintptr_t mepc)
+uintptr_t sm_handle_yield(uintptr_t *regs)
 {
   uintptr_t ret = 0;
 
-  ret = do_yield(regs, mcause, mepc);
+  ret = do_yield(regs);
 
   return ret;
 }
