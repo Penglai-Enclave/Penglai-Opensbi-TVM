@@ -146,10 +146,10 @@ int test_public_range(uintptr_t pfn, uintptr_t pagenum)
   uintptr_t cur = 0;
   while(cur < pagenum)
   {
-    if(!IS_PUBLIC_PAGE(*meta)){
-      sbi_bug("M mode: test_public_range: IS_PUBLIC_PAGE is failed\r\n");
-      return -1;
-    }
+    // if(!IS_PUBLIC_PAGE(*meta)){
+    //   sbi_bug("M mode: test_public_range: IS_PUBLIC_PAGE is failed\r\n");
+    //   return -1;
+    // }
     meta += 1;
     cur += 1;
   }
@@ -254,16 +254,16 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
 
   //fast path
   uintptr_t _pfn = pfn - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
-  page_meta* meta = (page_meta*)mbitmap_base + _pfn;
+  // page_meta* meta = (page_meta*)mbitmap_base + _pfn;
   uintptr_t cur = 0;
-  while(cur < pagenum)
-  {
-    if(!IS_SCHRODINGER_PAGE(*meta))
-      break;
-    meta += 1;
-    cur += 1;
-    _pfn += 1;
-  }
+  // while(cur < pagenum)
+  // {
+  //   if(!IS_SCHRODINGER_PAGE(*meta))
+  //     break;
+  //   meta += 1;
+  //   cur += 1;
+  //   _pfn += 1;
+  // }
   if(cur >= pagenum)
   {
     ret = 0;
@@ -298,15 +298,15 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
           //mark the page as schrodinger page, note: a huge page has 512 schrodinger pages
           for(int i=0; i<RISCV_PTENUM; i++)
           {
-            meta = ((page_meta*)mbitmap_base) + _pfn + i;
+            // meta = ((page_meta*)mbitmap_base) + _pfn + i;
             //check whether this physical page is already be a schrodinger page, but pt psoition is not current position
-            if(IS_SCHRODINGER_PAGE(*meta) && SCHRODINGER_PTE_POS(*meta) != pte_pos)
-            {
-              sbi_bug("M mode: schrodinger_init: page0x%lx is multi mapped\r\n", pfn);
-              // ret = -1;
-              // goto failed;
-            }
-            *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
+            // if(IS_SCHRODINGER_PAGE(*meta) && SCHRODINGER_PTE_POS(*meta) != pte_pos)
+            // {
+            //   sbi_bug("M mode: schrodinger_init: page0x%lx is multi mapped\r\n", pfn);
+            //   // ret = -1;
+            //   // goto failed;
+            // }
+            // *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
           }
         }
         else if(pfn >= pfn_end || (pfn+RISCV_PTENUM )<= pfn_base)
@@ -324,17 +324,17 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
       { //pte is located in the pte sub-area
         if(pfn >= pfn_base && pfn < pfn_end)
         {
-          sbi_printf("M mode: schrodinger_init: pfn %lx in pte\r\n", pfn);
-          _pfn = pfn - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
-          meta = (page_meta*)mbitmap_base + _pfn;
+          // sbi_printf("M mode: schrodinger_init: pfn %lx in pte\r\n", pfn);
+          // _pfn = pfn - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
+          // meta = (page_meta*)mbitmap_base + _pfn;
           //check whether this physical page is already be a schrodinger page, but pt psoition is not current position
-          if(IS_SCHRODINGER_PAGE(*meta) && SCHRODINGER_PTE_POS(*meta) != pte_pos)
-          {
-            sbi_bug("M mode: schrodinger_init: page0x%lx is multi mapped in pte\r\n", pfn);
-            // ret = -1;
-            // goto failed;
-          }
-          *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
+          // if(IS_SCHRODINGER_PAGE(*meta) && SCHRODINGER_PTE_POS(*meta) != pte_pos)
+          // {
+          //   sbi_bug("M mode: schrodinger_init: page0x%lx is multi mapped in pte\r\n", pfn);
+          //   // ret = -1;
+          //   // goto failed;
+          // }
+          // *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
         }
       }
     }
@@ -343,9 +343,9 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
   }
   while(_pfn_base < _pfn_end)
   {
-    meta = (page_meta*)mbitmap_base + _pfn_base;
-    if(!IS_SCHRODINGER_PAGE(*meta))
-      *meta = MAKE_ZERO_MAP_PAGE(*meta);
+    // meta = (page_meta*)mbitmap_base + _pfn_base;
+    // if(!IS_SCHRODINGER_PAGE(*meta))
+    //   *meta = MAKE_ZERO_MAP_PAGE(*meta);
     _pfn_base += 1;
   }
 out:
@@ -451,23 +451,23 @@ int unmap_mm_region(unsigned long paddr, unsigned long size)
 
   //fast path
   uintptr_t _pfn = PADDR_TO_PFN(paddr) - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-  page_meta* meta = (page_meta*)mbitmap_base + _pfn;
+  // page_meta* meta = (page_meta*)mbitmap_base + _pfn;
   uintptr_t pagenum = size >> RISCV_PGSHIFT;
   uintptr_t cur = 0;
-  while(cur < pagenum)
-  {
-    if(!IS_SCHRODINGER_PAGE(*meta))
-      break;
-    if(!IS_ZERO_MAP_PAGE(*meta))
-    {
-      //Get pte addr in the pt_area region
-      uintptr_t *pte = (uintptr_t*)pt_area_base + SCHRODINGER_PTE_POS(*meta);
-      *pte = INVALIDATE_PTE(*pte);
-    }
-    cur += 1;
-    _pfn += 1;
-    meta += 1;
-  }
+  // while(cur < pagenum)
+  // {
+  //   if(!IS_SCHRODINGER_PAGE(*meta))
+  //     break;
+  //   if(!IS_ZERO_MAP_PAGE(*meta))
+  //   {
+  //     //Get pte addr in the pt_area region
+  //     uintptr_t *pte = (uintptr_t*)pt_area_base + SCHRODINGER_PTE_POS(*meta);
+  //     *pte = INVALIDATE_PTE(*pte);
+  //   }
+  //   cur += 1;
+  //   _pfn += 1;
+  //   meta += 1;
+  // }
   if(cur >= pagenum)
     return 0;
 
@@ -540,22 +540,22 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
 
   //Fast path
   uintptr_t _pfn = PADDR_TO_PFN(paddr) - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-  page_meta* meta = (page_meta*)mbitmap_base + _pfn;
+  // page_meta* meta = (page_meta*)mbitmap_base + _pfn;
   uintptr_t cur = 0;
   uintptr_t pagenum = size >> RISCV_PGSHIFT;
-  while(cur < pagenum)
-  {
-    if(!IS_SCHRODINGER_PAGE(*meta))
-      break;
-    if(!IS_ZERO_MAP_PAGE(*meta))
-    {
-      uintptr_t *pte = (uintptr_t*)pt_area_base + SCHRODINGER_PTE_POS(*meta);
-      *pte = VALIDATE_PTE(*pte);
-    }
-    cur += 1;
-    _pfn += 1;
-    meta += 1;
-  }
+  // while(cur < pagenum)
+  // {
+  //   if(!IS_SCHRODINGER_PAGE(*meta))
+  //     break;
+  //   if(!IS_ZERO_MAP_PAGE(*meta))
+  //   {
+  //     uintptr_t *pte = (uintptr_t*)pt_area_base + SCHRODINGER_PTE_POS(*meta);
+  //     *pte = VALIDATE_PTE(*pte);
+  //   }
+  //   cur += 1;
+  //   _pfn += 1;
+  //   meta += 1;
+  // }
   if(cur >= pagenum)
     return 0;
 
@@ -602,6 +602,8 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
   return 0;
 }
 
+// static spinlock_t enclave_sm_lock = SPINLOCK_INIT;
+
 /**
  * \brief Set a single pte entry. It will be triggled by the untrusted OS when setting the new pte entry value.
  * 
@@ -615,10 +617,10 @@ int set_single_pte(uintptr_t *pte_dest, uintptr_t pte_src)
     *pte_dest = pte_src;
     return 0;
   }
-
-  uintptr_t pfn = 0;
-  uintptr_t _pfn = 0;
-  page_meta* meta = NULL;
+  // spin_lock(&enclave_sm_lock);
+  // uintptr_t pfn = 0;
+  // uintptr_t _pfn = 0;
+  // page_meta* meta;
   int huge_page = 0;
   //Check whether it is a huge page mapping
   if( ((unsigned long)pte_dest >= pt_area_pmd_base) && ((unsigned long)pte_dest < pt_area_pte_base)
@@ -632,29 +634,29 @@ int set_single_pte(uintptr_t *pte_dest, uintptr_t pte_src)
     //Unmap the original page in the old pte
     if(!IS_PGD(*pte_dest) && PTE_VALID(*pte_dest))
     {
-      pfn = PTE_TO_PFN(*pte_dest);
-      _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-      meta = (page_meta*)mbitmap_base + _pfn;
-      if(IS_SCHRODINGER_PAGE(*meta))
-      {
-        *meta = MAKE_ZERO_MAP_PAGE(*meta);
-      }
+      // pfn = PTE_TO_PFN(*pte_dest);
+      // _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
+      // meta = (page_meta*)mbitmap_base + _pfn;
+      // if(IS_SCHRODINGER_PAGE(*meta))
+      // {
+      //   *meta = MAKE_ZERO_MAP_PAGE(*meta);
+      // }
     }
     //Map the new page according to the pte_src
     if(!IS_PGD(pte_src) && PTE_VALID(pte_src))
     {
-      uintptr_t pte_pos = pte_dest - (uintptr_t*)pt_area_base;
-      pfn = PTE_TO_PFN(pte_src);
-      _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-      meta = (page_meta*)mbitmap_base + _pfn;
-      if(IS_ZERO_MAP_PAGE(*meta))
-      {
-        *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
-      }
-      else if(IS_SCHRODINGER_PAGE(*meta))
-      {
-        *meta = MAKE_PUBLIC_PAGE(NORMAL_PAGE);
-      }
+      // uintptr_t pte_pos = pte_dest - (uintptr_t*)pt_area_base;
+      // pfn = PTE_TO_PFN(pte_src);
+      // _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
+      // meta = (page_meta*)mbitmap_base + _pfn;
+      // if(IS_ZERO_MAP_PAGE(*meta))
+      // {
+      //   *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
+      // }
+      // else if(IS_SCHRODINGER_PAGE(*meta))
+      // {
+      //   *meta = MAKE_PUBLIC_PAGE(NORMAL_PAGE);
+      // }
     }
 
     *pte_dest = pte_src;
@@ -663,38 +665,39 @@ int set_single_pte(uintptr_t *pte_dest, uintptr_t pte_src)
   {
     if(!IS_PGD(*pte_dest) && PTE_VALID(*pte_dest))
     {
-      pfn = PTE_TO_PFN(*pte_dest);
-      _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-      for(int i = 0; i < RISCV_PTENUM; i++)
-      {
-        meta = (page_meta*)mbitmap_base + _pfn + i;
-        if(IS_SCHRODINGER_PAGE(*meta))
-        {
-          *meta = MAKE_ZERO_MAP_PAGE(*meta);
-        }
-      }
+      // pfn = PTE_TO_PFN(*pte_dest);
+      // _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
+      // for(int i = 0; i < RISCV_PTENUM; i++)
+      // {
+        // meta = (page_meta*)mbitmap_base + _pfn + i;
+        // if(IS_SCHRODINGER_PAGE(*meta))
+        // {
+        //   *meta = MAKE_ZERO_MAP_PAGE(*meta);
+        // }
+      // }
     }
 
     if(!IS_PGD(pte_src) && PTE_VALID(pte_src))
     {
-      uintptr_t pte_pos = pte_dest - (uintptr_t*)pt_area_base;
-      pfn = PTE_TO_PFN(pte_src);
-      _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-      for(int i = 0; i < RISCV_PTENUM; i++)
-      {
-        meta = (page_meta*)mbitmap_base + _pfn +i;
-        if(IS_ZERO_MAP_PAGE(*meta))
-          *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
-        else if(IS_SCHRODINGER_PAGE(*meta))
-        {
-          *meta = MAKE_PUBLIC_PAGE(NORMAL_PAGE);
-        }
-      }
+      // uintptr_t pte_pos = pte_dest - (uintptr_t*)pt_area_base;
+      // pfn = PTE_TO_PFN(pte_src);
+      // _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
+      // for(int i = 0; i < RISCV_PTENUM; i++)
+      // {
+        // meta = (page_meta*)mbitmap_base + _pfn +i;
+        // if(IS_ZERO_MAP_PAGE(*meta))
+        //   *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
+        // else if(IS_SCHRODINGER_PAGE(*meta))
+        // {
+        //   *meta = MAKE_PUBLIC_PAGE(NORMAL_PAGE);
+        // }
+      // }
     }
 
     *pte_dest = pte_src;
   }
   
+  // spin_unlock(&enclave_sm_lock);
   return 0;
 }
 

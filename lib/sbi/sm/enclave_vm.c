@@ -589,7 +589,7 @@ int map_empty_page(uintptr_t* root_page_table, struct page_t **free_pages, uintp
       return -1;
     uintptr_t free_ppn = (*free_pages)->paddr;
     *free_pages = (*free_pages)->next;
-    map_one_page(root_page_table, free_pages, va, free_ppn, PTE_R | PTE_W | PTE_U | PTE_V);
+    map_one_page(root_page_table, free_pages, va, free_ppn, PTE_D | PTE_A | PTE_R | PTE_W | PTE_U | PTE_V);
     va += RISCV_PGSIZE;
   }
   return 0;

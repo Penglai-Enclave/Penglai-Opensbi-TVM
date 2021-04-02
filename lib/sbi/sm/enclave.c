@@ -1421,7 +1421,6 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
   // sbi_debug("enclave %d mpec %lx running\n", eapp_args, (enclave->entry_point));
   eapp_args = eapp_args+1;
 
-
   enclave->state = RUNNING;
 run_enclave_out:
   release_enclave_metadata_lock();
@@ -1449,7 +1448,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
   int need_free_secure_memory = 0, copy_page_table_ret = 0;
 
   acquire_enclave_metadata_lock();
-
+  // sbi_debug("run: alloc enclave\n");
   shadow_enclave = __get_shadow_enclave(eid);
   enclave = __alloc_enclave();
 
@@ -1460,6 +1459,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
     goto run_enclave_out;
   }
 
+  // sbi_debug("run: check secure memory\n");
   if(check_and_set_secure_memory(enclave_run_param.free_page, enclave_run_param.size) != 0)
   {
     retval = ENCLAVE_ERROR;
@@ -1482,6 +1482,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
     free_mem -= RISCV_PGSIZE;
   }
 
+  // sbi_debug("run: copy page table\n");
   copy_page_table_ret = __copy_page_table((pte_t*) (shadow_enclave->root_page_table), &(enclave->free_pages), 2, (pte_t*)(enclave_run_param.free_page + RISCV_PGSIZE));
   if (copy_page_table_ret < 0)
   {
@@ -1514,6 +1515,8 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
     retval = ENCLAVE_ERROR;
     goto run_enclave_out;
   }
+  
+  // sbi_debug("run: begin map\n");
   mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_KBUFFER, enclave_run_param.kbuffer, enclave_run_param.kbuffer_size);
 
   //check shm
@@ -1531,6 +1534,8 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
   }
 
   copy_word_to_host((unsigned int*)enclave_run_param.eid_ptr, enclave->eid);
+
+  // sbi_debug("run: map relay page\n");
   //map the relay page
   if((retval =map_relay_page(enclave->eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, relay_page_entry)) < 0)
   {
@@ -1575,10 +1580,13 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
 
   enclave->state = RUNNING;
 
+  // sbi_debug("shadow enclave begin to run... share memory size %lx\n", enclave->shm_size);
+
   //commented by luxu
   // sbi_debug("M mode: run shadow enclave mm_arg %lx mm_size %lx...\n", regs[13], regs[14]);
   //sbi_printf("M mode: run shadow enclave...\n");
 
+  // sbi_debug("run: running...\n");
 run_enclave_out:
   release_enclave_metadata_lock();
   // tlb_remote_sfence();
