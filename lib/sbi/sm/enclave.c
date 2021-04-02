@@ -278,8 +278,6 @@ struct enclave_t* __alloc_enclave()
     enclave_metadata_head = init_mem_link(ENCLAVE_METADATA_REGION_SIZE, sizeof(struct enclave_t));
     if(!enclave_metadata_head)
     {
-      //commented by luxu
-      //sbi_printf("M mode: __alloc_enclave: don't have enough mempry\n");
       goto alloc_eid_out;
     }
     enclave_metadata_tail = enclave_metadata_head;
@@ -437,8 +435,6 @@ static struct shadow_enclave_t* __alloc_shadow_enclave()
     shadow_enclave_metadata_head = init_mem_link(SHADOW_ENCLAVE_METADATA_REGION_SIZE, sizeof(struct shadow_enclave_t));
     if(!shadow_enclave_metadata_head)
     {
-      //commented by luxu
-      //sbi_printf("M mode: __alloc_enclave: don't have enough memory\n");
       goto alloc_eid_out;
     }
     shadow_enclave_metadata_tail = shadow_enclave_metadata_head;
@@ -727,8 +723,6 @@ struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *sla
   //haven't alloc this eid 
   if(!found)
   {
-    //commented by luxu
-    //sbi_printf("M mode: __get_relay_page_by_name: the relay page of this enclave is non-existed or already retrieved :%s\n", enclave_name);
     return NULL;
   }
 
@@ -762,8 +756,6 @@ struct relay_page_entry_t* __list_relay_page_by_name()
   //haven't alloc this eid 
   if(!found)
   {
-    //commented by luxu
-    //sbi_printf("M mode: __get_relay_page_by_name: the relay page of this enclave is non-existed or already retrieved :%s\n", enclave_name);
     return NULL;
   }
 
@@ -1139,8 +1131,6 @@ uintptr_t create_enclave(enclave_create_param_t create_args)
   if(!enclave)
   {
     ret = ENCLAVE_NO_MEM;
-    //commented by luxu
-    //sbi_printf("M mode: %s: alloc enclave is failed \n", __func__);
     goto failed;
   }
 
@@ -1255,8 +1245,6 @@ uintptr_t create_shadow_enclave(enclave_create_param_t create_args)
   shadow_enclave = __alloc_shadow_enclave();
   if(!shadow_enclave)
   {
-    //commented by luxu
-    // sbi_printf("M mode: create shadow enclave: no enough memory to alloc_shadow_enclave\n");
     ret = ENCLAVE_NO_MEM;
     goto failed;
   }
@@ -1330,8 +1318,6 @@ uintptr_t map_relay_page(unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_a
     }
     if (__alloc_relay_page_entry(enclave->enclave_name, mm_arg_addr, mm_arg_size) ==NULL)
     {
-      //commented by luxu
-      // sbi_printf("M mode: map_relay_page: lack of the secure memory for the relay page entries\n");
       retval = ENCLAVE_NO_MEM;
       return retval;
     }
@@ -1574,10 +1560,6 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
   eapp_args = eapp_args+1;
 
   enclave->state = RUNNING;
-
-  //commented by luxu
-  // sbi_debug("M mode: run shadow enclave mm_arg %lx mm_size %lx...\n", regs[13], regs[14]);
-  //sbi_printf("M mode: run shadow enclave...\n");
 
 run_enclave_out:
   release_enclave_metadata_lock();
