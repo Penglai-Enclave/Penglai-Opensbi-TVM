@@ -303,8 +303,8 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
             if(IS_SCHRODINGER_PAGE(*meta) && SCHRODINGER_PTE_POS(*meta) != pte_pos)
             {
               sbi_bug("M mode: schrodinger_init: page0x%lx is multi mapped\r\n", pfn);
-              ret = -1;
-              goto failed;
+              // ret = -1;
+              // goto failed;
             }
             *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
           }
@@ -330,9 +330,9 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
           //check whether this physical page is already be a schrodinger page, but pt psoition is not current position
           if(IS_SCHRODINGER_PAGE(*meta) && SCHRODINGER_PTE_POS(*meta) != pte_pos)
           {
-            sbi_bug("M mode: schrodinger_init: page0x%lx is multi mapped\r\n", pfn);
-            ret = -1;
-            goto failed;
+            sbi_bug("M mode: schrodinger_init: page0x%lx is multi mapped in pte\r\n", pfn);
+            // ret = -1;
+            // goto failed;
           }
           *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
         }
@@ -352,18 +352,18 @@ out:
   spin_unlock(&mbitmap_lock);
   return ret;
 
-failed:
-  _pfn_base = pfn_base - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
-  _pfn_end = pfn_end - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
-  while(_pfn_base < _pfn_end)
-  {
-    meta = (page_meta*)mbitmap_base + _pfn_base;
-    *meta = MAKE_PUBLIC_PAGE(NORMAL_PAGE);
-    _pfn_base += 1;
-  }
+// failed:
+//   _pfn_base = pfn_base - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
+//   _pfn_end = pfn_end - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
+//   while(_pfn_base < _pfn_end)
+//   {
+//     meta = (page_meta*)mbitmap_base + _pfn_base;
+//     *meta = MAKE_PUBLIC_PAGE(NORMAL_PAGE);
+//     _pfn_base += 1;
+//   }
 
-  spin_unlock(&mbitmap_lock);
-  return ret;
+//   spin_unlock(&mbitmap_lock);
+//   return ret;
 }
 
 int sm_count = 0;
