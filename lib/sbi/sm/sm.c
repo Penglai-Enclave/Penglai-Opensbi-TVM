@@ -40,10 +40,13 @@ uintptr_t sm_mm_extend(uintptr_t paddr, uintptr_t size)
 
 uintptr_t pt_area_base = 0;
 uintptr_t pt_area_size = 0;
+uintptr_t pt_area_end = 0;
 uintptr_t mbitmap_base = 0;
 uintptr_t mbitmap_size = 0;
 uintptr_t pgd_order = 0;
 uintptr_t pmd_order = 0;
+uintptr_t pt_area_pmd_base = 0;
+uintptr_t pt_area_pte_base = 0;
 spinlock_t mbitmap_lock = SPINLOCK_INIT;
 
 /**
@@ -270,7 +273,7 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
   //slow path
   uintptr_t *pte = (uintptr_t*)pt_area_base;
   uintptr_t pte_pos = 0;
-  uintptr_t *pte_end = (uintptr_t*)(pt_area_base + pt_area_size);
+  uintptr_t *pte_end = (uintptr_t*)(pt_area_end);
   uintptr_t pfn_base = PADDR_TO_PFN((uintptr_t)DRAM_BASE) + _pfn;
   uintptr_t pfn_end = PADDR_TO_PFN(paddr + size);
   uintptr_t _pfn_base = pfn_base - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
@@ -285,7 +288,7 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
     {
       pfn = PTE_TO_PFN(*pte);
       //huge page entry
-      if( ((unsigned long)pte >= pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) && ((unsigned long)pte < pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE)
+      if( ((unsigned long)pte >= pt_area_pmd_base) && ((unsigned long)pte < pt_area_pte_base)
       &&IS_LEAF_PTE(*pte))
       {
         //the schrodinger page is large than huge page
@@ -317,7 +320,7 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
           //map_pt_pte_page(pte);
         }
       }
-      else if( ((unsigned long)pte >= pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE) && ((unsigned long)pte < pt_area_base + pt_area_size)) 
+      else if( ((unsigned long)pte >= pt_area_pte_base) && ((unsigned long)pte < pt_area_end)) 
       { //pte is located in the pte sub-area
         if(pfn >= pfn_base && pfn < pfn_end)
         {
@@ -476,15 +479,15 @@ int unmap_mm_region(unsigned long paddr, unsigned long size)
   }
   uintptr_t pfn_base = PADDR_TO_PFN((uintptr_t)DRAM_BASE) + _pfn;
   uintptr_t pfn_end = PADDR_TO_PFN(paddr + size);
-  uintptr_t *pte = (uintptr_t*)(pt_area_base + (1<<pgd_order)*RISCV_PGSIZE);
-  uintptr_t *pte_end = (uintptr_t*)(pt_area_base + pt_area_size);
+  uintptr_t *pte = (uintptr_t*)(pt_area_pmd_base);
+  uintptr_t *pte_end = (uintptr_t*)(pt_area_end);
 
   while(pte < pte_end)
   {
     if(!IS_PGD(*pte) && PTE_VALID(*pte))
     {
       uintptr_t pfn = PTE_TO_PFN(*pte);
-      if(((unsigned long)pte < pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE)
+      if(((unsigned long)pte < pt_area_pte_base)
 		      && IS_LEAF_PTE(*pte))
       {
         if(pfn >= pfn_end || (pfn+RISCV_PTENUM )<= pfn_base)
@@ -504,8 +507,8 @@ int unmap_mm_region(unsigned long paddr, unsigned long size)
           return -1;
         }
       }
-      else if( ((unsigned long)pte >= pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE) 
-		      && ((unsigned long)pte < pt_area_base + pt_area_size)
+      else if( ((unsigned long)pte >= pt_area_pte_base) 
+		      && ((unsigned long)pte < pt_area_end)
 		      && IS_LEAF_PTE(*pte))
       {
         if(pfn >= pfn_base && pfn < pfn_end)
@@ -559,14 +562,14 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
   //Slow path
   uintptr_t pfn_base = PADDR_TO_PFN((uintptr_t)DRAM_BASE) + _pfn;
   uintptr_t pfn_end = PADDR_TO_PFN(paddr + size);
-  uintptr_t *pte = (uintptr_t*)(pt_area_base + (1<<pgd_order)*RISCV_PGSIZE);
-  uintptr_t *pte_end = (uintptr_t*)(pt_area_base + pt_area_size);
+  uintptr_t *pte = (uintptr_t*)(pt_area_pmd_base);
+  uintptr_t *pte_end = (uintptr_t*)(pt_area_end);
   while(pte < pte_end)
   {
     if(!IS_PGD(*pte))
     {
       uintptr_t pfn = PTE_TO_PFN(*pte);
-      if(((unsigned long)pte < pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE))
+      if(((unsigned long)pte < pt_area_pte_base))
       {
         if(pfn >= pfn_end || (pfn+RISCV_PTENUM )<= pfn_base)
         {
@@ -585,7 +588,7 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
           return -1;
         }
       }
-      else if( ((unsigned long)pte >= pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE) && ((unsigned long)pte < pt_area_base + pt_area_size))
+      else if( ((unsigned long)pte >= pt_area_pte_base) && ((unsigned long)pte < pt_area_end))
       {
         if(pfn >= pfn_base && pfn < pfn_end)
         {
@@ -618,7 +621,7 @@ int set_single_pte(uintptr_t *pte_dest, uintptr_t pte_src)
   page_meta* meta = NULL;
   int huge_page = 0;
   //Check whether it is a huge page mapping
-  if( ((unsigned long)pte_dest >= pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) && ((unsigned long)pte_dest < pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE)
+  if( ((unsigned long)pte_dest >= pt_area_pmd_base) && ((unsigned long)pte_dest < pt_area_pte_base)
       &&IS_LEAF_PTE(*pte_dest))
     huge_page = 1;
   else
@@ -705,23 +708,23 @@ int set_single_pte(uintptr_t *pte_dest, uintptr_t pte_src)
  */
 int check_pt_location(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src)
 {
-  if((pt_area_base < pte_addr) && ((pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) > pte_addr))
+  if((pt_area_base < pte_addr) && ((pt_area_pmd_base) > pte_addr))
   {
-    if(((pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) > pa) || ((pt_area_base + ((1<<pgd_order) + (1<<pmd_order))*RISCV_PGSIZE) < pa) )
+    if(((pt_area_pmd_base) > pa) || ((pt_area_pte_base) < pa) )
     {
       sbi_printf("pt_area_base %lx pte_addr %lx pa %lx", pt_area_base, pte_addr, pa);
       sbi_bug("M mode: invalid pt location\r\n");
       return -1;
     }
   }
-  if(((pt_area_base + (1<<pgd_order)*RISCV_PGSIZE) < pte_addr) && ((pt_area_base + ((1<<pgd_order) + (1<<pmd_order))*RISCV_PGSIZE) > pte_addr))
+  if(((pt_area_pmd_base) < pte_addr) && ((pt_area_pte_base) > pte_addr))
   {
     if((pte_src & PTE_V) && !(pte_src & PTE_R) && !(pte_src & PTE_W) && !(pte_src & PTE_X))
     {
-      if (((pt_area_base + ((1<<pgd_order) + (1<<pmd_order))*RISCV_PGSIZE) > pa) || ((pt_area_base + pt_area_size) < pa) )
+      if (((pt_area_pte_base) > pa) || ((pt_area_end) < pa) )
       {
-        sbi_printf("pt_area_base %lx pt_area_pte_base %lx pt_area_pte_end %lx pte_addr %lx pa %lx\r\n", pt_area_base, (pt_area_base + ((1<<pgd_order) + (1<<pmd_order))*RISCV_PGSIZE), 
-        (pt_area_base + pt_area_size), pte_addr, pa);
+        sbi_printf("pt_area_base %lx pt_area_pte_base %lx pt_area_pte_end %lx pte_addr %lx pa %lx\r\n", pt_area_base, (pt_area_pte_base), 
+        (pt_area_end), pte_addr, pa);
         sbi_bug("M mode: invalid pt location\r\n");
         return -1;
       }
@@ -905,6 +908,9 @@ uintptr_t sm_pt_area_separation(uintptr_t tmp_pgd_order, uintptr_t tmp_pmd_order
 {
   pgd_order = tmp_pgd_order;
   pmd_order = tmp_pmd_order;
+  pt_area_pmd_base = pt_area_base + (1<<pgd_order)*RISCV_PGSIZE;
+  pt_area_pte_base = pt_area_base + (1<<pgd_order)*RISCV_PGSIZE + (1<<pmd_order)*RISCV_PGSIZE;
+  pt_area_end = pt_area_base + pt_area_size;
   uintptr_t mstatus = csr_read(CSR_MSTATUS);
   /* Enable TVM here */
   mstatus = INSERT_FIELD(mstatus, MSTATUS_TVM, 1);
