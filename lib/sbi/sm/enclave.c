@@ -34,13 +34,23 @@ int cpu_eid(int i)
 
 //spinlock
 static spinlock_t enclave_metadata_lock = SPINLOCK_INIT;
-void acquire_enclave_metadata_lock()
+inline void acquire_enclave_metadata_lock()
 {
   spin_lock(&enclave_metadata_lock);
 }
-void release_enclave_metadata_lock()
+inline void release_enclave_metadata_lock()
 {
   spin_unlock(&enclave_metadata_lock);
+}
+
+spinlock_t enclave_relay_page_lock = SPINLOCK_INIT;
+inline void acquire_enclave_relay_page_lock()
+{
+  spin_lock(&enclave_relay_page_lock);
+}
+inline void release_enclave_relay_page_lock()
+{
+  spin_unlock(&enclave_relay_page_lock);
 }
 
 //enclave metadata
@@ -567,6 +577,8 @@ struct relay_page_entry_t* __alloc_relay_page_entry(char *enclave_name, unsigned
   struct relay_page_entry_t* relay_page_entry = NULL;
   int found = 0, link_mem_index = 0;
 
+  acquire_enclave_relay_page_lock();
+
   //relay_page_entry metadata list hasn't be initialized yet
   if(relay_page_head == NULL)
   {
@@ -629,12 +641,14 @@ struct relay_page_entry_t* __alloc_relay_page_entry(char *enclave_name, unsigned
     relay_page_entry->size = relay_page_size;
   }
 
+  release_enclave_relay_page_lock();
   return relay_page_entry;
 
 failed:
   if(relay_page_entry)
     sbi_memset((void*)relay_page_entry, 0, sizeof(struct relay_page_entry_t));
 
+  release_enclave_relay_page_lock();
   return NULL;
 }
 
@@ -655,6 +669,8 @@ int __free_relay_page_entry(unsigned long relay_page_addr, unsigned long relay_p
   struct link_mem_t *cur;
   struct relay_page_entry_t *relay_page_entry = NULL;
   int found = 0, ret_val = 0;
+
+  acquire_enclave_relay_page_lock();
 
   // sbi_printf("free relay page address %lx relay_page_size %lx\n", relay_page_addr, relay_page_size);
   for(cur = relay_page_head; cur != NULL; cur = cur->next_link_mem)
@@ -679,6 +695,8 @@ int __free_relay_page_entry(unsigned long relay_page_addr, unsigned long relay_p
     ret_val = -1;
   }
 
+  release_enclave_relay_page_lock();
+
   return ret_val;
 }
 
@@ -694,6 +712,8 @@ struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *sla
   struct link_mem_t *cur;
   struct relay_page_entry_t *relay_page_entry = NULL;
   int i, k, found=0;
+
+  acquire_enclave_relay_page_lock();
 
   cur = relay_page_head;
   for (k  = 0; k < (*link_mem_index); k++)
@@ -731,6 +751,8 @@ struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *sla
     //sbi_printf("M mode: __get_relay_page_by_name: the relay page of this enclave is non-existed or already retrieved :%s\n", enclave_name);
     return NULL;
   }
+
+  release_enclave_relay_page_lock(); 
 
   return relay_page_entry;
 }

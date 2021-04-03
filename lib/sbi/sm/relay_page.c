@@ -82,8 +82,6 @@ uintptr_t asyn_enclave_call(uintptr_t* regs, uintptr_t enclave_name, uintptr_t a
     return -1UL;
   }
 
-  acquire_enclave_metadata_lock();
-
   eid = get_curr_enclave_id();
   enclave = __get_enclave(eid);
   if(!enclave)
@@ -105,12 +103,9 @@ uintptr_t asyn_enclave_call(uintptr_t* regs, uintptr_t enclave_name, uintptr_t a
     goto failed;
   }
   
-  release_enclave_metadata_lock();
   return ret;
 
 failed:
-  
-  release_enclave_metadata_lock();
   sbi_bug("M MODE: asyn_enclave_call: failed\n");
   return ret;
 }
@@ -137,8 +132,6 @@ uintptr_t split_mem_region(uintptr_t *regs, uintptr_t mem_addr_u, uintptr_t mem_
     sbi_bug("M mode: split_mem_region: CPU not in the enclave mode\n");
     return -1UL;
   }
-
-  acquire_enclave_metadata_lock();
 
   eid = get_curr_enclave_id();
   enclave = __get_enclave(eid);
@@ -198,10 +191,9 @@ uintptr_t split_mem_region(uintptr_t *regs, uintptr_t mem_addr_u, uintptr_t mem_
     ret = -1UL;
     goto failed;
   }
-  release_enclave_metadata_lock();
   return ret;
+
 failed:
-  release_enclave_metadata_lock();
   sbi_bug("M MODE: split_mem_region: failed\n");
   return ret;
 }
