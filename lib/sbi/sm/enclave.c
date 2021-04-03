@@ -43,6 +43,8 @@ void release_enclave_metadata_lock()
   spin_unlock(&enclave_metadata_lock);
 }
 
+static spinlock_t enclave_relay_page_lock = SPINLOCK_INIT;
+
 //enclave metadata
 struct link_mem_t* enclave_metadata_head = NULL;
 struct link_mem_t* enclave_metadata_tail = NULL;
@@ -567,6 +569,7 @@ struct relay_page_entry_t* __alloc_relay_page_entry(char *enclave_name, unsigned
   struct relay_page_entry_t* relay_page_entry = NULL;
   int found = 0, link_mem_index = 0;
 
+  spin_lock(&enclave_relay_page_lock);
   //relay_page_entry metadata list hasn't be initialized yet
   if(relay_page_head == NULL)
   {
@@ -629,12 +632,14 @@ struct relay_page_entry_t* __alloc_relay_page_entry(char *enclave_name, unsigned
     relay_page_entry->size = relay_page_size;
   }
 
+  spin_unlock(&enclave_relay_page_lock);
   return relay_page_entry;
 
 failed:
   if(relay_page_entry)
     sbi_memset((void*)relay_page_entry, 0, sizeof(struct relay_page_entry_t));
 
+  spin_unlock(&enclave_relay_page_lock);
   return NULL;
 }
 
@@ -656,6 +661,7 @@ int __free_relay_page_entry(unsigned long relay_page_addr, unsigned long relay_p
   struct relay_page_entry_t *relay_page_entry = NULL;
   int found = 0, ret_val = 0;
 
+  spin_lock(&enclave_relay_page_lock);
   // sbi_printf("free relay page address %lx relay_page_size %lx\n", relay_page_addr, relay_page_size);
   for(cur = relay_page_head; cur != NULL; cur = cur->next_link_mem)
   {
@@ -679,6 +685,7 @@ int __free_relay_page_entry(unsigned long relay_page_addr, unsigned long relay_p
     ret_val = -1;
   }
 
+  spin_unlock(&enclave_relay_page_lock);
   return ret_val;
 }
 
@@ -695,6 +702,7 @@ struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *sla
   struct relay_page_entry_t *relay_page_entry = NULL;
   int i, k, found=0;
 
+  spin_lock(&enclave_relay_page_lock);
   cur = relay_page_head;
   for (k  = 0; k < (*link_mem_index); k++)
     cur = cur->next_link_mem;
@@ -729,9 +737,11 @@ struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *sla
   {
     //commented by luxu
     //sbi_printf("M mode: __get_relay_page_by_name: the relay page of this enclave is non-existed or already retrieved :%s\n", enclave_name);
+    spin_unlock(&enclave_relay_page_lock);
     return NULL;
   }
 
+  spin_unlock(&enclave_relay_page_lock);
   return relay_page_entry;
 }
 
@@ -1109,14 +1119,14 @@ uintptr_t create_enclave(enclave_create_param_t create_args)
   uintptr_t ret = 0, free_mem = 0;
   int need_free_secure_memory = 0;
 
-  acquire_enclave_metadata_lock();
-
   if(!enable_enclave())
   {
     ret = ENCLAVE_ERROR;
     sbi_bug("M mode: %s: cannot enable enclave \n", __func__);
     goto failed;
   }
+
+  acquire_enclave_metadata_lock();
 
   //check enclave memory layout
   if(check_and_set_secure_memory(create_args.paddr, create_args.size) != 0)
@@ -1136,6 +1146,9 @@ uintptr_t create_enclave(enclave_create_param_t create_args)
   }
 
   enclave = __alloc_enclave();
+
+  release_enclave_metadata_lock();
+
   if(!enclave)
   {
     ret = ENCLAVE_NO_MEM;
@@ -1201,7 +1214,6 @@ uintptr_t create_enclave(enclave_create_param_t create_args)
   
   hash_enclave(enclave, (void*)(enclave->hash), 0);
   copy_word_to_host((unsigned int*)create_args.eid_ptr, enclave->eid);
-  release_enclave_metadata_lock();
 
   //Sync and flush the remote TLB entry.
   // tlb_remote_sfence();
@@ -1216,7 +1228,6 @@ failed:
   {
     __free_enclave(enclave->eid);
   }
-  release_enclave_metadata_lock();
   return ret;
 }
 
@@ -1253,6 +1264,8 @@ uintptr_t create_shadow_enclave(enclave_create_param_t create_args)
   }
   struct shadow_enclave_t* shadow_enclave;
   shadow_enclave = __alloc_shadow_enclave();
+
+  release_enclave_metadata_lock();
   if(!shadow_enclave)
   {
     //commented by luxu
@@ -1267,7 +1280,6 @@ uintptr_t create_shadow_enclave(enclave_create_param_t create_args)
   
   hash_shadow_enclave(shadow_enclave, (void*)(shadow_enclave->hash), 0);
   copy_word_to_host((unsigned int*)create_args.eid_ptr, shadow_enclave->eid);
-  spin_unlock(&enclave_metadata_lock);
   
   //Sync and flush the remote TLB entry.
   // tlb_remote_sfence();
@@ -1278,7 +1290,6 @@ failed:
   {
     free_secure_memory(create_args.paddr, create_args.size);
   }
-  spin_unlock(&enclave_metadata_lock);
   return ret;
 }
 
@@ -1369,6 +1380,8 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
   acquire_enclave_metadata_lock();
 
   enclave = __get_enclave(eid);
+
+  release_enclave_metadata_lock();
   if(!enclave || enclave->state != FRESH || enclave->type == SERVER_ENCLAVE)
   {
     sbi_bug("M mode: run_enclave: enclave%d can not be accessed!\n", eid);
@@ -1423,7 +1436,6 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
 
   enclave->state = RUNNING;
 run_enclave_out:
-  release_enclave_metadata_lock();
   // tlb_remote_sfence();
   return retval;
 }
@@ -1448,9 +1460,9 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
   int need_free_secure_memory = 0, copy_page_table_ret = 0;
 
   acquire_enclave_metadata_lock();
-  // sbi_debug("run: alloc enclave\n");
   shadow_enclave = __get_shadow_enclave(eid);
   enclave = __alloc_enclave();
+  release_enclave_metadata_lock();
 
   if(!enclave)
   {
@@ -1588,7 +1600,6 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
 
   // sbi_debug("run: running...\n");
 run_enclave_out:
-  release_enclave_metadata_lock();
   // tlb_remote_sfence();
   return retval;
 
@@ -1602,7 +1613,6 @@ failed:
   if(enclave)
     __free_enclave(enclave->eid);
   
-  release_enclave_metadata_lock();
   return retval;
 }
 
@@ -2255,6 +2265,9 @@ uintptr_t enclave_sys_write(uintptr_t* regs)
   acquire_enclave_metadata_lock();
 
   enclave = __get_enclave(eid);
+
+  release_enclave_metadata_lock();
+  
   if(!enclave || check_enclave_authentication(enclave)!=0 || enclave->state != RUNNING)
   {
     ret = -1UL;
@@ -2267,7 +2280,6 @@ uintptr_t enclave_sys_write(uintptr_t* regs)
   enclave->state = OCALLING;
   ret = ENCLAVE_OCALL;
 out:
-  release_enclave_metadata_lock();
   return ret;
 }
 
