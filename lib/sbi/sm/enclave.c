@@ -1344,7 +1344,7 @@ uintptr_t map_relay_page(unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_a
     if (__alloc_relay_page_entry(enclave->enclave_name, mm_arg_addr, mm_arg_size) ==NULL)
     {
       //commented by luxu
-      // sbi_printf("M mode: map_relay_page: lack of the secure memory for the relay page entries\n");
+      // sbi_debug("M mode: map_relay_page: lack of the secure memory for the relay page entries\n");
       retval = ENCLAVE_NO_MEM;
       return retval;
     }
@@ -1394,7 +1394,7 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, 
   /** We bind a host process (host_ptbr) during run_enclave, which will be checked during resume */
   enclave->host_ptbr = csr_read(CSR_SATP);
   
-  if((retval =map_relay_page(eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, relay_page_entry)) < 0)
+  if((retval =map_relay_page(eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, relay_page_entry)) != 0)
   {
     if (retval == ENCLAVE_NO_MEM)
       goto run_enclave_out;
@@ -1551,7 +1551,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
 
   // sbi_debug("run: map relay page\n");
   //map the relay page
-  if((retval =map_relay_page(enclave->eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, relay_page_entry)) < 0)
+  if((retval =map_relay_page(enclave->eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, relay_page_entry)) != 0)
   {
     if (retval == ENCLAVE_NO_MEM)
       goto failed;
@@ -1600,7 +1600,7 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
   // sbi_debug("M mode: run shadow enclave mm_arg %lx mm_size %lx...\n", regs[13], regs[14]);
   //sbi_printf("M mode: run shadow enclave...\n");
 
-  // sbi_debug("run: running...\n");
+  // sbi_debug("run: running... relay page address %lx, mm_arg_addr %lx\n", enclave->mm_arg_paddr[0], mm_arg_addr);
 run_enclave_out:
   // tlb_remote_sfence();
   return retval;
@@ -1614,7 +1614,6 @@ failed:
   
   if(enclave)
     __free_enclave(enclave->eid);
-  
   return retval;
 }
 
@@ -1862,7 +1861,7 @@ uintptr_t sbrk_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintptr_
 uintptr_t return_relay_page_after_resume(struct enclave_t *enclave, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
 {
   uintptr_t retval = 0, mmap_offset = 0;
-  if((retval =map_relay_page(enclave->eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, NULL)) < 0)
+  if((retval =map_relay_page(enclave->eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, NULL)) != 0)
   {
     if (retval == ENCLAVE_NO_MEM)
       goto run_enclave_out;
