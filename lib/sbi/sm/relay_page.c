@@ -84,6 +84,8 @@ uintptr_t asyn_enclave_call(uintptr_t* regs, uintptr_t enclave_name, uintptr_t a
 
   eid = get_curr_enclave_id();
   enclave = __get_enclave(eid);
+  release_enclave_metadata_lock();
+
   if(!enclave)
   {
     ret = -1UL;
@@ -135,6 +137,8 @@ uintptr_t split_mem_region(uintptr_t *regs, uintptr_t mem_addr_u, uintptr_t mem_
 
   eid = get_curr_enclave_id();
   enclave = __get_enclave(eid);
+  release_enclave_metadata_lock();
+
   if(!enclave)
   {
     ret = -1UL;
