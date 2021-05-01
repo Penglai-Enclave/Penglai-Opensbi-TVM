@@ -256,15 +256,6 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
   uintptr_t _pfn = pfn - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
   // page_meta* meta = (page_meta*)mbitmap_base + _pfn;
   uintptr_t cur = 0;
-  // TODO: Remove schrodinger page is the hardware implementation
-  // while(cur < pagenum)
-  // {
-  //   if(!IS_SCHRODINGER_PAGE(*meta))
-  //     break;
-  //   meta += 1;
-  //   cur += 1;
-  //   _pfn += 1;
-  // }
   if(cur >= pagenum)
   {
     ret = 0;
@@ -277,8 +268,6 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
   uintptr_t *pte_end = (uintptr_t*)(pt_area_end);
   uintptr_t pfn_base = PADDR_TO_PFN((uintptr_t)DRAM_BASE) + _pfn;
   uintptr_t pfn_end = PADDR_TO_PFN(paddr + size);
-  uintptr_t _pfn_base = pfn_base - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
-  uintptr_t _pfn_end = pfn_end - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
   //check whether these page only has one mapping in the kernel
   //pte @ pt entry address
   //pfn @ the pfn in the current pte
@@ -293,82 +282,20 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
       &&IS_LEAF_PTE(*pte))
       {
         //the schrodinger page is large than huge page
-        if(pfn >= pfn_base && (pfn + RISCV_PTENUM) <= pfn_end)
-        {
-          // TODO: Remove schrodinger page is the hardware implementation
-          // _pfn = pfn - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
-          // //mark the page as schrodinger page, note: a huge page has 512 schrodinger pages
-          // for(int i=0; i<RISCV_PTENUM; i++)
-          // {
-          //   meta = ((page_meta*)mbitmap_base) + _pfn + i;
-          //   check whether this physical page is already be a schrodinger page, but pt psoition is not current position
-          //   if(IS_SCHRODINGER_PAGE(*meta) && SCHRODINGER_PTE_POS(*meta) != pte_pos)
-          //   {
-          //     sbi_bug("M mode: schrodinger_init: page0x%lx is multi mapped\r\n", pfn);
-          //     // ret = -1;
-          //     // goto failed;
-          //   }
-          //   *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
-          // }
-        }
-        else if(pfn >= pfn_end || (pfn+RISCV_PTENUM )<= pfn_base)
-        {
-          //There is no  overlap between the  pmd region and schrodinger region
-        }
-        else
+        if(((pfn_base<pfn) && (pfn<pfn_end) && (pfn_end>pfn) && (pfn_end<(pfn+RISCV_PTENUM))) 
+            || ((pfn_base<(pfn+RISCV_PTENUM)) && ((pfn+RISCV_PTENUM)<pfn_end) && (pfn_base>pfn) && (pfn_base<(pfn+RISCV_PTENUM))))
         {
           sbi_bug(" M mode: ERROR: schrodinger_init: non-split page\r\n");
           return -1;
-          //map_pt_pte_page(pte);
         }
       }
-      // TODO: Remove schrodinger page is the hardware implementation
-      // else if( ((unsigned long)pte >= pt_area_pte_base) && ((unsigned long)pte < pt_area_end)) 
-      // { //pte is located in the pte sub-area
-      //   if(pfn >= pfn_base && pfn < pfn_end)
-      //   {
-      //     sbi_printf("M mode: schrodinger_init: pfn %lx in pte\r\n", pfn);
-      //     _pfn = pfn - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
-      //     meta = (page_meta*)mbitmap_base + _pfn;
-      //     check whether this physical page is already be a schrodinger page, but pt psoition is not current position
-      //     if(IS_SCHRODINGER_PAGE(*meta) && SCHRODINGER_PTE_POS(*meta) != pte_pos)
-      //     {
-      //       sbi_bug("M mode: schrodinger_init: page0x%lx is multi mapped in pte\r\n", pfn);
-      //       // ret = -1;
-      //       // goto failed;
-      //     }
-      //     *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
-      //   }
-      // }
     }
     pte_pos += 1;
     pte += 1;
   }
-  while(_pfn_base < _pfn_end)
-  {
-    // TODO: Remove schrodinger page is the hardware implementation
-    // meta = (page_meta*)mbitmap_base + _pfn_base;
-    // if(!IS_SCHRODINGER_PAGE(*meta))
-    //   *meta = MAKE_ZERO_MAP_PAGE(*meta);
-    _pfn_base += 1;
-  }
 out:
   spin_unlock(&mbitmap_lock);
   return ret;
-
-// TODO: Remove schrodinger page is the hardware implementation
-// failed:
-//   _pfn_base = pfn_base - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
-//   _pfn_end = pfn_end - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
-//   while(_pfn_base < _pfn_end)
-//   {
-//     meta = (page_meta*)mbitmap_base + _pfn_base;
-//     *meta = MAKE_PUBLIC_PAGE(NORMAL_PAGE);
-//     _pfn_base += 1;
-//   }
-
-//   spin_unlock(&mbitmap_lock);
-//   return ret;
 }
 
 int sm_count = 0;
@@ -454,35 +381,8 @@ int unmap_mm_region(unsigned long paddr, unsigned long size)
     return -1;
   }
 
-  //fast path
-  uintptr_t _pfn = PADDR_TO_PFN(paddr) - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-  // page_meta* meta = (page_meta*)mbitmap_base + _pfn;
-  uintptr_t pagenum = size >> RISCV_PGSHIFT;
-  uintptr_t cur = 0;
-  // while(cur < pagenum)
-  // {
-  //   if(!IS_SCHRODINGER_PAGE(*meta))
-  //     break;
-  //   if(!IS_ZERO_MAP_PAGE(*meta))
-  //   {
-  //     //Get pte addr in the pt_area region
-  //     uintptr_t *pte = (uintptr_t*)pt_area_base + SCHRODINGER_PTE_POS(*meta);
-  //     *pte = INVALIDATE_PTE(*pte);
-  //   }
-  //   cur += 1;
-  //   _pfn += 1;
-  //   meta += 1;
-  // }
-  if(cur >= pagenum)
-    return 0;
-
   //slow path
-  if(_pfn != (PADDR_TO_PFN(paddr) - PADDR_TO_PFN((uintptr_t)DRAM_BASE)))
-  {
-    sbi_printf("M mode: Error in unmap_mm_region, pfn is conflict, _pfn_old is %lx _pfn_new is %lx\r\n", 
-		    _pfn, (PADDR_TO_PFN(paddr) - PADDR_TO_PFN((uintptr_t)DRAM_BASE)));
-  }
-  uintptr_t pfn_base = PADDR_TO_PFN((uintptr_t)DRAM_BASE) + _pfn;
+  uintptr_t pfn_base = PADDR_TO_PFN(paddr);
   uintptr_t pfn_end = PADDR_TO_PFN(paddr + size);
   uintptr_t *pte = (uintptr_t*)(pt_area_pmd_base);
   uintptr_t *pte_end = (uintptr_t*)(pt_area_end);
@@ -492,6 +392,8 @@ int unmap_mm_region(unsigned long paddr, unsigned long size)
     if(!IS_PGD(*pte) && PTE_VALID(*pte))
     {
       uintptr_t pfn = PTE_TO_PFN(*pte);
+
+      // Check for the valid huge page entry
       if(((unsigned long)pte < pt_area_pte_base)
 		      && IS_LEAF_PTE(*pte))
       {
@@ -512,6 +414,7 @@ int unmap_mm_region(unsigned long paddr, unsigned long size)
           return -1;
         }
       }
+      // Check for the valid page table entry
       else if( ((unsigned long)pte >= pt_area_pte_base) 
 		      && ((unsigned long)pte < pt_area_end)
 		      && IS_LEAF_PTE(*pte))
@@ -543,29 +446,8 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
   if(paddr < (uintptr_t)DRAM_BASE /*|| (paddr + size) > */)
     return -1;
 
-  //Fast path
-  uintptr_t _pfn = PADDR_TO_PFN(paddr) - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-  // page_meta* meta = (page_meta*)mbitmap_base + _pfn;
-  uintptr_t cur = 0;
-  uintptr_t pagenum = size >> RISCV_PGSHIFT;
-  // while(cur < pagenum)
-  // {
-  //   if(!IS_SCHRODINGER_PAGE(*meta))
-  //     break;
-  //   if(!IS_ZERO_MAP_PAGE(*meta))
-  //   {
-  //     uintptr_t *pte = (uintptr_t*)pt_area_base + SCHRODINGER_PTE_POS(*meta);
-  //     *pte = VALIDATE_PTE(*pte);
-  //   }
-  //   cur += 1;
-  //   _pfn += 1;
-  //   meta += 1;
-  // }
-  if(cur >= pagenum)
-    return 0;
-
   //Slow path
-  uintptr_t pfn_base = PADDR_TO_PFN((uintptr_t)DRAM_BASE) + _pfn;
+  uintptr_t pfn_base = PADDR_TO_PFN(paddr);
   uintptr_t pfn_end = PADDR_TO_PFN(paddr + size);
   uintptr_t *pte = (uintptr_t*)(pt_area_pmd_base);
   uintptr_t *pte_end = (uintptr_t*)(pt_area_end);
@@ -574,6 +456,8 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
     if(!IS_PGD(*pte))
     {
       uintptr_t pfn = PTE_TO_PFN(*pte);
+
+      // Remap the huge page entry
       if(((unsigned long)pte < pt_area_pte_base))
       {
         if(pfn >= pfn_end || (pfn+RISCV_PTENUM )<= pfn_base)
@@ -584,7 +468,7 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
         }
         else if(pfn_base<=pfn && pfn_end>=(pfn+RISCV_PTENUM))
         {
-          //This huge page is covered by remap region
+          //The huge page is covered by remap region
           *pte = VALIDATE_PTE(*pte);
         }
         else
@@ -593,7 +477,8 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
           return -1;
         }
       }
-      else if( ((unsigned long)pte >= pt_area_pte_base) && ((unsigned long)pte < pt_area_end))
+      // Remapm the page table entry
+      else if(((unsigned long)pte >= pt_area_pte_base) && ((unsigned long)pte < pt_area_end))
       {
         if(pfn >= pfn_base && pfn < pfn_end)
         {
@@ -618,89 +503,6 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
 inline int set_single_pte(uintptr_t *pte_dest, uintptr_t pte_src)
 {
   *pte_dest = pte_src;
-  // if(!enable_enclave())
-  // {
-  //   *pte_dest = pte_src;
-  //   return 0;
-  // }
-  // uintptr_t pfn = 0;
-  // uintptr_t _pfn = 0;
-  // page_meta* meta;
-  // int huge_page = 0;
-  // //Check whether it is a huge page mapping
-  // if( ((unsigned long)pte_dest >= pt_area_pmd_base) && ((unsigned long)pte_dest < pt_area_pte_base)
-  //     &&IS_LEAF_PTE(*pte_dest))
-  //   huge_page = 1;
-  // else
-  //   huge_page = 0;
-  
-  // if(huge_page == 0)
-  // {
-  //   //Unmap the original page in the old pte
-  //   if(!IS_PGD(*pte_dest) && PTE_VALID(*pte_dest))
-  //   {
-  //     pfn = PTE_TO_PFN(*pte_dest);
-  //     _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-  //     meta = (page_meta*)mbitmap_base + _pfn;
-  //     if(IS_SCHRODINGER_PAGE(*meta))
-  //     {
-  //       *meta = MAKE_ZERO_MAP_PAGE(*meta);
-  //     }
-  //   }
-  //   //Map the new page according to the pte_src
-  //   if(!IS_PGD(pte_src) && PTE_VALID(pte_src))
-  //   {
-  //     uintptr_t pte_pos = pte_dest - (uintptr_t*)pt_area_base;
-  //     pfn = PTE_TO_PFN(pte_src);
-  //     _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-  //     meta = (page_meta*)mbitmap_base + _pfn;
-  //     if(IS_ZERO_MAP_PAGE(*meta))
-  //     {
-  //       *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
-  //     }
-  //     else if(IS_SCHRODINGER_PAGE(*meta))
-  //     {
-  //       *meta = MAKE_PUBLIC_PAGE(NORMAL_PAGE);
-  //     }
-  //   }
-
-  //   *pte_dest = pte_src;
-  // }
-  // else
-  // {
-  //   if(!IS_PGD(*pte_dest) && PTE_VALID(*pte_dest))
-  //   {
-  //     pfn = PTE_TO_PFN(*pte_dest);
-  //     _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-  //     for(int i = 0; i < RISCV_PTENUM; i++)
-  //     {
-  //       meta = (page_meta*)mbitmap_base + _pfn + i;
-  //       if(IS_SCHRODINGER_PAGE(*meta))
-  //       {
-  //         *meta = MAKE_ZERO_MAP_PAGE(*meta);
-  //       }
-  //     }
-  //   }
-
-  //   if(!IS_PGD(pte_src) && PTE_VALID(pte_src))
-  //   {
-  //     uintptr_t pte_pos = pte_dest - (uintptr_t*)pt_area_base;
-  //     pfn = PTE_TO_PFN(pte_src);
-  //     _pfn = pfn - PADDR_TO_PFN((uintptr_t)DRAM_BASE);
-  //     for(int i = 0; i < RISCV_PTENUM; i++)
-  //     {
-  //       meta = (page_meta*)mbitmap_base + _pfn +i;
-  //       if(IS_ZERO_MAP_PAGE(*meta))
-  //         *meta = MAKE_SCHRODINGER_PAGE(0, pte_pos);
-  //       else if(IS_SCHRODINGER_PAGE(*meta))
-  //       {
-  //         *meta = MAKE_PUBLIC_PAGE(NORMAL_PAGE);
-  //       }
-  //     }
-  //   }
-
-  //   *pte_dest = pte_src;
-  // }
   
   return 0;
 }
@@ -784,12 +586,6 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
       if((!IS_PGD(pte_src)) && PTE_VALID(pte_src))
       {
         uintptr_t pfn = PTE_TO_PFN(pte_src);
-        // if (check_pt_location((uintptr_t)pte_addr, PTE_TO_PA(pte_src), pte_src) < 0)
-        // {
-        //   ret = -1;
-        //   sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: check_pt_location is failed \r\n");
-        //   break;
-        // }
         if(test_public_range(pfn, pte_num) < 0)
         {
           ret = -1;
