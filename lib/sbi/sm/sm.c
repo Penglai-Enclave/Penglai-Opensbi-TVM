@@ -254,13 +254,6 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
 
   //fast path
   uintptr_t _pfn = pfn - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
-  // page_meta* meta = (page_meta*)mbitmap_base + _pfn;
-  uintptr_t cur = 0;
-  if(cur >= pagenum)
-  {
-    ret = 0;
-    goto out;
-  }
 
   //slow path
   uintptr_t *pte = (uintptr_t*)pt_area_base;
