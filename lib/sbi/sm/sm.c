@@ -470,7 +470,7 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
           return -1;
         }
       }
-      // Remapm the page table entry
+      // Remap the page table entry
       else if(((unsigned long)pte >= pt_area_pte_base) && ((unsigned long)pte < pt_area_end))
       {
         if(pfn >= pfn_base && pfn < pfn_end)
