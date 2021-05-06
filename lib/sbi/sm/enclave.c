@@ -914,9 +914,6 @@ static int swap_from_enclave_to_host(uintptr_t* regs, struct enclave_t* enclave)
   return 0;
 }
 
-// TODO:
-// There is a concurrent bug in remote tlb flush, we will fix it soon
-// Do not use in any commercial products until we totally fix it.
 static inline int tlb_remote_sfence()
 {
   int ret;
