@@ -4,7 +4,6 @@
 #include "sm/enclave_vm.h"
 #include "sm/server_enclave.h"
 #include "sm/ipi.h"
-#include "sm/relay_page.h"
 #include "sm/enclave_mm.h"
 
 /**************************************************************/

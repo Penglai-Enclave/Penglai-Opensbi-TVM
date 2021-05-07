@@ -10,7 +10,6 @@
 #include "sm/sm.h"
 #include "sm/platform/pt_area/platform_thread.h"
 #include "sm/ipi.h"
-#include "sm/relay_page.h"
 #include "sm/attest.h"
 #include <sbi/sbi_tlb.h>
 
@@ -1379,10 +1378,12 @@ uintptr_t map_relay_page(unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_a
  * \param mm_arg_addr The relay page address for this enclave, map before enclave run.
  * \param mm_arg_size The relay page size for this enclave, map before enclave run.  
  */
-uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
+uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enclave_run_param)
 {
   struct enclave_t* enclave;
   uintptr_t retval = 0, mmap_offset = 0;
+  uintptr_t mm_arg_addr = enclave_run_param.mm_arg_addr;
+  uintptr_t mm_arg_size = enclave_run_param.mm_arg_size;
   struct relay_page_entry_t* relay_page_entry = NULL;
 
   acquire_enclave_metadata_lock();
@@ -1457,7 +1458,7 @@ run_enclave_out:
  * \param mm_arg_addr The relay page address for this enclave, map before enclave run.
  * \param mm_arg_size The relay page size for this enclave, map before enclave run.  
  */
-uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_run_param_t enclave_run_param, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
+uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_run_param_t enclave_run_param)
 {
   struct enclave_t* enclave = NULL;
   struct shadow_enclave_t* shadow_enclave = NULL;
@@ -1465,6 +1466,8 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
   struct pm_area_struct* pma = NULL;
   struct vm_area_struct* vma = NULL;
   uintptr_t retval = 0, mmap_offset = 0, free_mem = 0;
+  uintptr_t mm_arg_addr = enclave_run_param.mm_arg_addr;
+  uintptr_t mm_arg_size = enclave_run_param.mm_arg_size;
   int need_free_secure_memory = 0, copy_page_table_ret = 0;
 
   acquire_enclave_metadata_lock();

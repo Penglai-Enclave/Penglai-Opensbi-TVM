@@ -3,7 +3,7 @@
 
 #include "sbi/sbi_types.h"
 
-/// \brief define the number of general registers
+// \brief define the number of general registers
 #define N_GENERAL_REGISTERS 32
 
 struct general_registers_t

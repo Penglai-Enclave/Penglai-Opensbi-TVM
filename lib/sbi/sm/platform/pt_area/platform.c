@@ -12,7 +12,7 @@ int platform_init()
 {
   clear_pmp(0);
 
-  ///config the PMP 0 to protect security monitor
+  //config the PMP 0 to protect security monitor
   struct pmp_config_t pmp_config;
   pmp_config.paddr = (uintptr_t)SM_BASE;
   pmp_config.size = (unsigned long)SM_SIZE;
@@ -20,7 +20,7 @@ int platform_init()
   pmp_config.perm = PMP_NO_PERM;
   set_pmp(0, pmp_config);
 
-  ///config the last PMP to allow kernel to access memory
+  //config the last PMP to allow kernel to access memory
   pmp_config.paddr = 0;
   pmp_config.size = -1UL;
   pmp_config.mode = PMP_A_NAPOT;

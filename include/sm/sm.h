@@ -102,43 +102,51 @@ int remap_mm_region(unsigned long paddr, unsigned long size);
 
 int check_in_enclave_world();
 
-//called by host
+// Called by host
+// Penglai-specific operations
 uintptr_t sm_sm_init(uintptr_t pt_area_base, uintptr_t pt_area_size, uintptr_t mbitmap_base, uintptr_t mbitmap_size);
 uintptr_t sm_pt_area_separation(uintptr_t pgd_order, uintptr_t pmd_order);
 uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uintptr_t size);
-uintptr_t sm_split_huge_page(unsigned long paddr, unsigned long size, uintptr_t split_pte);
 uintptr_t sm_map_pte(uintptr_t* pte, uintptr_t* new_pte_addr);
 uintptr_t sm_mm_init(uintptr_t paddr, uintptr_t size);
 uintptr_t sm_mm_extend(uintptr_t paddr, uintptr_t size);
+uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size);
+
+// Enclave-related operations
 uintptr_t sm_create_enclave(uintptr_t enclave_create_args);
 uintptr_t sm_attest_enclave(uintptr_t enclave_id, uintptr_t report, uintptr_t nonce);
-uintptr_t sm_attest_shadow_enclave(uintptr_t enclave_id, uintptr_t report, uintptr_t nonce);
-uintptr_t sm_run_enclave(uintptr_t *regs, uintptr_t enclave_id, uintptr_t addr, uintptr_t size);
+uintptr_t sm_run_enclave(uintptr_t *regs, uintptr_t enclave_id, uintptr_t enclave_run_arg);
 uintptr_t sm_stop_enclave(uintptr_t *regs, uintptr_t enclave_id);
 uintptr_t sm_resume_enclave(uintptr_t *regs, uintptr_t enclave_id);
 uintptr_t sm_destroy_enclave(uintptr_t *regs, uintptr_t enclave_id);
+
+// Server enclave-related operations
 uintptr_t sm_create_server_enclave(uintptr_t enclave_create_args);
 uintptr_t sm_destroy_server_enclave(uintptr_t *regs, uintptr_t enclave_id);
 
-uintptr_t sm_run_shadow_enclave(uintptr_t *regs, uintptr_t enclave_id, uintptr_t shadow_enclave_run_args, uintptr_t addr, uintptr_t size);
+// Shadow enclave-related operations
 uintptr_t sm_create_shadow_enclave(uintptr_t enclave_create_args);
+uintptr_t sm_run_shadow_enclave(uintptr_t *regs, uintptr_t enclave_id, uintptr_t shadow_enclave_run_args);
+uintptr_t sm_attest_shadow_enclave(uintptr_t enclave_id, uintptr_t report, uintptr_t nonce);
 
-//called by enclave
+
+// Called by enclave
 uintptr_t sm_enclave_ocall(uintptr_t *regs, uintptr_t ocall_func_id, uintptr_t arg0, uintptr_t arg1);
 uintptr_t sm_exit_enclave(uintptr_t *regs, uintptr_t retval);
+// IPC interfaces for enclaves
 uintptr_t sm_server_enclave_acquire(uintptr_t *regs, uintptr_t server_name);
-uintptr_t sm_get_caller_id(uintptr_t *regs);
 uintptr_t sm_call_enclave(uintptr_t *regs, uintptr_t enclave_id, uintptr_t arg);
-uintptr_t sm_enclave_return(uintptr_t *regs, uintptr_t arg);
 uintptr_t sm_asyn_enclave_call(uintptr_t *regs, uintptr_t enclave_name, uintptr_t arg);
+uintptr_t sm_enclave_return(uintptr_t *regs, uintptr_t arg);
+
+uintptr_t sm_get_caller_id(uintptr_t *regs);
 uintptr_t sm_split_mem_region(uintptr_t *regs, uintptr_t mem_addr, uintptr_t mem_size, uintptr_t split_addr);
 
-//called when timer irq
+// Called when timer irq
 uintptr_t sm_do_timer_irq(uintptr_t *regs, uintptr_t mcause, uintptr_t mepc);
 uintptr_t sm_handle_yield(uintptr_t *regs);
 
-uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size);
-
+// Debug
 uintptr_t sm_print(uintptr_t paddr, uintptr_t size);
 
 #endif /* _SM_H */

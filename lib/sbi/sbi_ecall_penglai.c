@@ -33,9 +33,6 @@ static int sbi_ecall_penglai_handler(unsigned long extid, unsigned long funcid,
     case SBI_SM_PT_AREA_SEPARATION:
       retval = sm_pt_area_separation(arg0, arg1);
       break;
-    case SBI_SM_SPLIT_HUGE_PAGE:
-      retval = sm_split_huge_page(arg0, arg1, arg2);
-      break;
     case SBI_SM_MAP_PTE:
       retval = sm_map_pte((uintptr_t *)arg0, (uintptr_t *)arg1);
       break;
@@ -46,7 +43,7 @@ static int sbi_ecall_penglai_handler(unsigned long extid, unsigned long funcid,
       retval = sm_create_enclave(arg0);
       break;
     case SBI_RUN_ENCLAVE:
-      retval = sm_run_enclave(args, arg0, arg1, arg2);
+      retval = sm_run_enclave(args, arg0, arg1);
       break;
     case SBI_STOP_ENCLAVE:
       retval = sm_stop_enclave(args, arg0);
@@ -67,7 +64,7 @@ static int sbi_ecall_penglai_handler(unsigned long extid, unsigned long funcid,
       retval = sm_create_shadow_enclave(arg0);
       break;
     case SBI_RUN_SHADOW_ENCLAVE:
-      retval = sm_run_shadow_enclave(args, arg0, arg1, arg2, arg3);
+      retval = sm_run_shadow_enclave(args, arg0, arg1);
       break;
     case SBI_ATTEST_SHADOW_ENCLAVE:
       retval = sm_attest_shadow_enclave(arg0, arg1, arg2);
