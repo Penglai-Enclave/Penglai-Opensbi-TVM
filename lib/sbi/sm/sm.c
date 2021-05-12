@@ -562,6 +562,12 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
       if((!IS_PGD(pte_src)) && PTE_VALID(pte_src))
       {
         uintptr_t pfn = PTE_TO_PFN(pte_src);
+        if (check_pt_location((uintptr_t)pte_addr, PTE_TO_PA(pte_src), pte_src) < 0)
+        {
+          ret = -1;
+          sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: check_pt_location is failed \r\n");
+          break;
+        }
         if(test_public_range(pfn, pte_num) < 0)
         {
           ret = -1;
