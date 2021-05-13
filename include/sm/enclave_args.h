@@ -92,6 +92,12 @@ typedef struct enclave_create_param
   unsigned long *retval;
 } enclave_create_param_t;
 
+typedef struct enclave_run_param
+{
+  unsigned long mm_arg_addr;
+  unsigned long mm_arg_size;
+} enclave_run_param_t;
+
 typedef struct shadow_enclave_run_param
 {
   unsigned long sptbr;
@@ -105,8 +111,8 @@ typedef struct shadow_enclave_run_param
   unsigned long shm_paddr;
   unsigned long shm_size;
 
-  unsigned long schrodinger_paddr;
-  unsigned long schrodinger_size;
+  unsigned long mm_arg_addr;
+  unsigned long mm_arg_size;
 
   unsigned long *ecall_arg0;
   unsigned long *ecall_arg1;

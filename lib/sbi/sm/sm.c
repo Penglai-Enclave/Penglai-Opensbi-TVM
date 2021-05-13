@@ -7,7 +7,6 @@
 #include "sm/enclave_vm.h"
 #include "sm/enclave_mm.h"
 #include "sm/server_enclave.h"
-#include "sm/relay_page.h"
 #include "sm/platform/pt_area/platform.h"
 
 /**
@@ -342,22 +341,6 @@ uintptr_t sm_map_pte(uintptr_t* pmd, uintptr_t* new_pte_addr)
 }
 
 /**
- * \brief It finds the target pte entry for a huge page
- * FIXME: turn the functionality into host OS
- * 
- * \param paddr The start address of the checking memory range.
- * \param size The size of the checking memory range.
- * \param split_pmd Return the pmd of the huge page which needs to be splitted. 
- */
-uintptr_t sm_split_huge_page(unsigned long paddr, unsigned long size, uintptr_t split_pmd)
-{
-  //This function is removed from the monitor
-  uintptr_t retval = 0;
-
-  return retval;
-}
-
-/**
  * \brief Unmap a memory region, [paddr, paddr + size], from host's all PTEs
  * We can achieve a fast path unmapping if the unmapped pages are SCHRODINGER PAGEs.
  * 
@@ -579,6 +562,12 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
       if((!IS_PGD(pte_src)) && PTE_VALID(pte_src))
       {
         uintptr_t pfn = PTE_TO_PFN(pte_src);
+        if (check_pt_location((uintptr_t)pte_addr, PTE_TO_PA(pte_src), pte_src) < 0)
+        {
+          ret = -1;
+          sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: check_pt_location is failed \r\n");
+          break;
+        }
         if(test_public_range(pfn, pte_num) < 0)
         {
           ret = -1;
@@ -784,11 +773,22 @@ uintptr_t sm_attest_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce)
  * \param report The shadow enclave measurement report.
  * \param nouce The attestation nonce.
  */
-uintptr_t sm_run_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
+uintptr_t sm_run_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t enclave_run_args)
 {
   uintptr_t retval = 0;
+  enclave_run_param_t enclave_sbi_param_local;
 
-  retval = run_enclave(regs, (unsigned int)eid, mm_arg_addr, mm_arg_size);
+  if(test_public_range(PADDR_TO_PFN(enclave_run_args), 1) < 0){
+    return ENCLAVE_ERROR;
+  }
+  retval = copy_from_host(&enclave_sbi_param_local,
+      (enclave_run_param_t*)enclave_run_args,
+      sizeof(enclave_run_param_t));
+
+  if(retval != 0)
+    return ENCLAVE_ERROR;
+
+  retval = run_enclave(regs, (unsigned int)eid, enclave_sbi_param_local);
 
   return retval;
 }
@@ -901,7 +901,7 @@ uintptr_t sm_create_shadow_enclave(uintptr_t enclave_sbi_param)
  * \param mm_arg_addr The relay page address.
  * \param mm_arg_size The relay page size.
  */
-uintptr_t sm_run_shadow_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t shadow_enclave_run_args, uintptr_t mm_arg_addr, uintptr_t mm_arg_size)
+uintptr_t sm_run_shadow_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t shadow_enclave_run_args)
 {
   shadow_enclave_run_param_t enclave_sbi_param_local;
   uintptr_t retval = 0;
@@ -914,7 +914,7 @@ uintptr_t sm_run_shadow_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t shadow
   if(retval != 0)
     return ENCLAVE_ERROR;
 
-  retval = run_shadow_enclave(regs, (unsigned int)eid, enclave_sbi_param_local, mm_arg_addr, mm_arg_size);
+  retval = run_shadow_enclave(regs, (unsigned int)eid, enclave_sbi_param_local);
   if (retval ==  ENCLAVE_ATTESTATION)
   {
     copy_to_host((shadow_enclave_run_param_t*)shadow_enclave_run_args,

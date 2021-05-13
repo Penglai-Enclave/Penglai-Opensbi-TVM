@@ -94,33 +94,33 @@ struct enclave_t
   enclave_type_t type;
   enclave_state_t state;
 
-  ///vm_area_struct lists
+  //vm_area_struct lists
   struct vm_area_struct* text_vma;
   struct vm_area_struct* stack_vma;
-  uintptr_t _stack_top; ///lowest address of stack area
+  uintptr_t _stack_top; //lowest address of stack area
   struct vm_area_struct* heap_vma;
-  uintptr_t _heap_top;  ///highest address of heap area
+  uintptr_t _heap_top;  //highest address of heap area
   struct vm_area_struct* mmap_vma;
 
-  ///pm_area_struct list
+  //pm_area_struct list
   struct pm_area_struct* pma_list;
   struct page_t* free_pages;
   uintptr_t free_pages_num;
 
-  ///root page table of enclave
+  //root page table of enclave
   unsigned long root_page_table;
 
-  ///root page table register for host
+  //root page table register for host
   unsigned long host_ptbr;
 
-  ///entry point of enclave
+  //entry point of enclave
   unsigned long entry_point;
 
-  ///shared mem with kernel
+  //shared mem with kernel
   unsigned long kbuffer;//paddr
   unsigned long kbuffer_size;
 
-  ///shared mem with host
+  //shared mem with host
   unsigned long shm_paddr;
   unsigned long shm_size;
 
@@ -152,13 +152,13 @@ struct shadow_enclave_t
   struct page_t* free_pages;
   uintptr_t free_pages_num;
 
-  ///root page table of enclave
+  //root page table of enclave
   unsigned long root_page_table;
 
-  ///root page table register for host
+  //root page table register for host
   unsigned long host_ptbr;
 
-  ///entry point of enclave
+  //entry point of enclave
   unsigned long entry_point;
   struct thread_state_t thread_context;
   unsigned char hash[HASH_SIZE];
@@ -169,8 +169,8 @@ struct shadow_enclave_t
  */
 struct cpu_state_t
 {
-  int in_enclave; /// whether current hart is in enclave-mode
-  int eid; /// the eid of current enclave if the hart in enclave-mode
+  int in_enclave; // whether current hart is in enclave-mode
+  int eid; // the eid of current enclave if the hart in enclave-mode
 };
 
 void acquire_enclave_metadata_lock();
@@ -194,22 +194,24 @@ struct enclave_t* __alloc_enclave();
 int __free_enclave(int eid);
 void free_enclave_memory(struct pm_area_struct *pma);
 
+// Called by host
+// Enclave-related operations
 uintptr_t create_enclave(enclave_create_param_t create_args);
 uintptr_t attest_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce);
-uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce);
-uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, uintptr_t addr, uintptr_t size);
+uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enclave_run_param);
 uintptr_t stop_enclave(uintptr_t* regs, unsigned int eid);
 uintptr_t wake_enclave(uintptr_t* regs, unsigned int eid);
 uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid);
+
+// Shadow encalve related operations
+uintptr_t create_shadow_enclave(enclave_create_param_t create_args);
+uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce);
+uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_run_param_t enclave_run_param);
+
+// Resume enclave
 uintptr_t resume_enclave(uintptr_t* regs, unsigned int eid);
 uintptr_t resume_from_ocall(uintptr_t* regs, unsigned int eid);
 
-uintptr_t exit_enclave(uintptr_t* regs, unsigned long retval);
-uintptr_t enclave_mmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size);
-uintptr_t enclave_unmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size);
-
-uintptr_t create_shadow_enclave(enclave_create_param_t create_args);
-uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_run_param_t enclave_run_param, uintptr_t addr, uintptr_t size);
 
 struct call_enclave_arg_t
 {
@@ -220,20 +222,37 @@ struct call_enclave_arg_t
   uintptr_t resp_vaddr;
   uintptr_t resp_size;
 };
+
+// Called by enclave
 uintptr_t call_enclave(uintptr_t *regs, unsigned int enclave_id, uintptr_t arg);
 uintptr_t enclave_return(uintptr_t *regs, uintptr_t arg);
+uintptr_t asyn_enclave_call(uintptr_t *regs, uintptr_t enclave_name, uintptr_t arg);
+uintptr_t split_mem_region(uintptr_t *regs, uintptr_t mem_addr, uintptr_t mem_size, uintptr_t split_addr);
+uintptr_t exit_enclave(uintptr_t* regs, unsigned long retval);
+// Ocall operations
+uintptr_t enclave_mmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size);
+uintptr_t enclave_unmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size);
 uintptr_t enclave_sys_write(uintptr_t *regs);
 uintptr_t enclave_sbrk(uintptr_t* regs, intptr_t size);
 uintptr_t enclave_read_sec(uintptr_t *regs, uintptr_t sec);
 uintptr_t enclave_write_sec(uintptr_t *regs, uintptr_t sec);
 uintptr_t enclave_return_relay_page(uintptr_t *regs);
-uintptr_t do_timer_irq(uintptr_t* regs, uintptr_t mcause, uintptr_t mepc);
 uintptr_t do_yield(uintptr_t* regs);
+
+// IPI
 uintptr_t ipi_stop_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid);
 uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid);
 
+// Timer IRQ
+uintptr_t do_timer_irq(uintptr_t* regs, uintptr_t mcause, uintptr_t mepc);
 
-//relay page
+// Relay page
+struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *slab_index, int *link_mem_index);
+int __free_relay_page_entry(unsigned long relay_page_addr, unsigned long relay_page_size);
+struct relay_page_entry_t* __alloc_relay_page_entry(char *enclave_name, unsigned long relay_page_addr, unsigned long relay_page_size);
+int free_all_relay_page(unsigned long *mm_arg_paddr, unsigned long *mm_arg_size);
+uintptr_t change_relay_page_ownership(unsigned long relay_page_addr, unsigned long relay_page_size, char *enclave_name);
+
 #define ENTRY_PER_METADATA_REGION 100
 #define ENTRY_PER_RELAY_PAGE_REGION 20
 
@@ -243,10 +262,6 @@ struct relay_page_entry_t
   unsigned long  addr;
   unsigned long size;
 };
-uintptr_t change_relay_page_ownership(unsigned long relay_page_addr, unsigned long relay_page_size, char *enclave_name);
-struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *slab_index, int *link_mem_index);
-int __free_relay_page_entry(unsigned long relay_page_addr, unsigned long relay_page_size);
-struct relay_page_entry_t* __alloc_relay_page_entry(char *enclave_name, unsigned long relay_page_addr, unsigned long relay_page_size);
 
 
 #endif /* _ENCLAVE_H */
