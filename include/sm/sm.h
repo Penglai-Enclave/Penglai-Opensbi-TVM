@@ -117,7 +117,7 @@ uintptr_t sm_create_enclave(uintptr_t enclave_create_args);
 uintptr_t sm_attest_enclave(uintptr_t enclave_id, uintptr_t report, uintptr_t nonce);
 uintptr_t sm_run_enclave(uintptr_t *regs, uintptr_t enclave_id, uintptr_t enclave_run_arg);
 uintptr_t sm_stop_enclave(uintptr_t *regs, uintptr_t enclave_id);
-uintptr_t sm_resume_enclave(uintptr_t *regs, uintptr_t enclave_id);
+uintptr_t sm_resume_enclave(uintptr_t *regs, uintptr_t enclave_id, uintptr_t resume_func_id);
 uintptr_t sm_destroy_enclave(uintptr_t *regs, uintptr_t enclave_id);
 
 // Server enclave-related operations

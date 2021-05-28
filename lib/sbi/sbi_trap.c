@@ -266,16 +266,18 @@ void sbi_trap_handler(struct sbi_trap_regs *regs)
 				sbi_timer_process();
 			break;
 		case IRQ_M_SOFT:
-			if(check_in_enclave_world() < 0)
+			// if((check_in_enclave_world() == 0) || 
+				// (!sbi_strcmp(sbi_return_ipi_event_name(),"IPI_DESTROY_ENCLAVE")))
+			if((check_in_enclave_world() == 0))
 			{
-				sbi_ipi_process();
-			}
-			else
-			{
-				//TODO: just consider the ipi for destroying the enclave
+				// sbi_debug("send ipi into enclave %s\n", sbi_return_ipi_event_name());
 				sbi_ipi_process_in_enclave(regs);
 				regs->mepc = csr_read(CSR_MEPC);
 				regs->mstatus = csr_read(CSR_MSTATUS);
+			}
+			else
+			{
+				sbi_ipi_process();
 			}
 			break;
 		default:

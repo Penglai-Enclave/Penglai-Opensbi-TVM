@@ -57,7 +57,6 @@ static void sbi_eprocess_ipi_destroy_enclave(struct sbi_scratch *scratch, struct
 
 static void sbi_process_ipi_destroy_enclave(struct sbi_scratch *scratch)
 {
-	sbi_bug("M mode: sbi_process_ipi_destroy_enclave error\n");
 	return;
 }
 

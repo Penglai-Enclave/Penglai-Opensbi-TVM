@@ -17,6 +17,8 @@ int eapp_args = 0;
 extern int CPU_IN_CRITICAL;
 extern int CPU_NEED_FLUSH[MAX_HARTS];
 extern int CPU_FLUSH_TAG;
+extern bool NEED_DESTORY_ENCLAVE[MAX_HARTS];
+
 extern spinlock_t cpu_in_critical_lock;
 #define SET_FLUSH_TAG(hartid) CPU_FLUSH_TAG|(hartid)
 #define REMOVE_FLUSH_TAG(hartid) CPU_FLUSH_TAG&(~(1<<hartid)) 
@@ -1421,7 +1423,7 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enc
   csr_write(CSR_MEPC, (uintptr_t)(enclave->entry_point));
 
   //enable timer interrupt
-  csr_read_set(CSR_MIE, MIP_MTIP);
+  // csr_read_set(CSR_MIE, MIP_MTIP);
   csr_read_set(CSR_MIE, MIP_MSIP);
 
   //set default stack
@@ -1482,7 +1484,6 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
     goto run_enclave_out;
   }
 
-  // sbi_debug("run: check secure memory\n");
   if(check_and_set_secure_memory(enclave_run_param.free_page, enclave_run_param.size) != 0)
   {
     retval = ENCLAVE_ERROR;
@@ -1505,7 +1506,6 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
     free_mem -= RISCV_PGSIZE;
   }
 
-  // sbi_debug("run: copy page table\n");
   copy_page_table_ret = __copy_page_table((pte_t*) (shadow_enclave->root_page_table), &(enclave->free_pages), 2, (pte_t*)(enclave_run_param.free_page + RISCV_PGSIZE));
   if (copy_page_table_ret < 0)
   {
@@ -1539,7 +1539,6 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
     goto run_enclave_out;
   }
   
-  // sbi_debug("run: begin map\n");
   mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_KBUFFER, enclave_run_param.kbuffer, enclave_run_param.kbuffer_size);
 
   //check shm
@@ -1558,7 +1557,6 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
 
   copy_word_to_host((unsigned int*)enclave_run_param.eid_ptr, enclave->eid);
 
-  // sbi_debug("run: map relay page\n");
   //map the relay page
   if((retval =map_relay_page(enclave->eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, relay_page_entry)) != 0)
   {
@@ -1603,13 +1601,10 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
 
   enclave->state = RUNNING;
 
-  // sbi_debug("shadow enclave begin to run... share memory size %lx\n", enclave->shm_size);
 
   //commented by luxu
-  // sbi_debug("M mode: run shadow enclave mm_arg %lx mm_size %lx...\n", regs[13], regs[14]);
   //sbi_printf("M mode: run shadow enclave...\n");
 
-  // sbi_debug("run: running... relay page address %lx, mm_arg_addr %lx\n", enclave->mm_arg_paddr[0], mm_arg_addr);
 run_enclave_out:
   tlb_remote_sfence();
   return retval;
@@ -1739,9 +1734,15 @@ uintptr_t resume_enclave(uintptr_t* regs, unsigned int eid)
 
   acquire_enclave_metadata_lock();
   enclave = __get_real_enclave(eid);
-  if(!enclave || enclave->state <= FRESH || enclave->host_ptbr != csr_read(CSR_SATP))
+  if(!enclave)
   {
-    sbi_bug("M mode: resume_enclave: enclave%d can not be accessed\n", eid);
+    sbi_bug("M mode: resume_enclave: enclave%d is not existed\n", eid);
+    retval = 0UL;
+    goto resume_enclave_out;
+  }
+  if(enclave->state <= FRESH || enclave->host_ptbr != csr_read(CSR_SATP))
+  {
+    sbi_bug("M mode: resume_enclave: enclave%d cannot resume\n", eid);
     retval = -1UL;
     goto resume_enclave_out;
   }
@@ -1964,7 +1965,6 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
   struct enclave_t *enclave = NULL;
   uintptr_t dest_hart = 0;
   struct pm_area_struct* pma = NULL;
-  int need_free_enclave_memory = 0;
 
   acquire_enclave_metadata_lock();
 
@@ -1986,8 +1986,10 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
   if(enclave->state != RUNNING)
   {
     pma = enclave->pma_list;
-    need_free_enclave_memory = 1;
     __free_enclave(eid);
+    free_enclave_memory(pma);
+    free_all_relay_page(mm_arg_paddr, mm_arg_size);
+    release_enclave_metadata_lock();
   }
   else
   {
@@ -1998,20 +2000,20 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
         dest_hart = i;
     }
     if (dest_hart == csr_read(CSR_MHARTID))
+    {
+      release_enclave_metadata_lock();
+      NEED_DESTORY_ENCLAVE[dest_hart] = 1;
       ipi_destroy_enclave(regs, csr_read(CSR_SATP), eid);
+    }
     else
+    {
+      release_enclave_metadata_lock();
+      NEED_DESTORY_ENCLAVE[dest_hart] = 1;
       set_ipi_destroy_enclave_and_sync(dest_hart, csr_read(CSR_SATP), eid);
+    }
   }
 
 destroy_enclave_out:
-  release_enclave_metadata_lock();
-
-  //should wait after release enclave_metadata_lock to avoid deadlock
-  if(need_free_enclave_memory)
-  {
-    free_enclave_memory(pma);
-    free_all_relay_page(mm_arg_paddr, mm_arg_size);
-  }
 
   return retval;
 }
@@ -2598,6 +2600,14 @@ uintptr_t do_timer_irq(uintptr_t *regs, uintptr_t mcause, uintptr_t mepc)
 
   acquire_enclave_metadata_lock();
 
+  
+  if (NEED_DESTORY_ENCLAVE[csr_read(CSR_MHARTID)] == 1)
+  {
+    retval = ipi_destroy_enclave(regs, csr_read(CSR_SATP), eid);
+    release_enclave_metadata_lock();
+    return retval;
+  }
+
   enclave = __get_enclave(eid);
   if(!enclave || enclave->state != RUNNING)
   {
@@ -2665,7 +2675,7 @@ uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid)
   int need_free_enclave_memory = 0;
 
   // TODO acquire the enclave metadata lock
-  // acquire_enclave_metadata_lock();
+  acquire_enclave_metadata_lock();
   // printm("M mode: ipi_destroy_enclave %d\r\n", eid);
 
   enclave = __get_enclave(eid);
@@ -2704,9 +2714,10 @@ uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid)
   pma = enclave->pma_list;
   need_free_enclave_memory = 1;
   __free_enclave(eid);
+  NEED_DESTORY_ENCLAVE[csr_read(CSR_MHARTID)] =0;
 
 ipi_stop_enclave_out:
-  // release_enclave_metadata_lock();
+  release_enclave_metadata_lock();
 
   if(need_free_enclave_memory)
   {
@@ -2715,6 +2726,7 @@ ipi_stop_enclave_out:
   }
   regs[10] = 0;
 	regs[11] = 0;
+
   return ret;
 }
 
