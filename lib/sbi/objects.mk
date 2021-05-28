@@ -44,6 +44,7 @@ libsbi-objs-y += sbi_expected_trap.o
 libsbi-objs-y += sbi_pmp.o
 libsbi-objs-y += sbi_tvm.o
 libsbi-objs-y += sbi_ipi_destroy_enclave.o
+libsbi-objs-y += sbi_ipi_stop_enclave.o
 libsbi-objs-y += sm/enclave_mm.o
 libsbi-objs-y += sm/platform/pt_area/platform.o
 libsbi-objs-y += sm/platform/pt_area/platform_thread.o

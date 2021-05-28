@@ -3,6 +3,7 @@
 #include "sbi/riscv_locks.h"
 #include "sbi/sbi_bitops.h" 
 #include "sbi/sbi_ipi_destroy_enclave.h"
+#include "sbi/sbi_ipi_stop_enclave.h"
 #include "sbi/sbi_console.h"
 #include "sm/enclave.h"
 #include "sm/enclave_vm.h"
@@ -17,6 +18,9 @@ int eapp_args = 0;
 extern int CPU_IN_CRITICAL;
 extern int CPU_NEED_FLUSH[MAX_HARTS];
 extern int CPU_FLUSH_TAG;
+extern bool NEED_DESTORY_ENCLAVE[MAX_HARTS];
+extern bool NEED_STOP_ENCLAVE[MAX_HARTS];
+
 extern spinlock_t cpu_in_critical_lock;
 #define SET_FLUSH_TAG(hartid) CPU_FLUSH_TAG|(hartid)
 #define REMOVE_FLUSH_TAG(hartid) CPU_FLUSH_TAG&(~(1<<hartid)) 
@@ -1421,7 +1425,7 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enc
   csr_write(CSR_MEPC, (uintptr_t)(enclave->entry_point));
 
   //enable timer interrupt
-  csr_read_set(CSR_MIE, MIP_MTIP);
+  // csr_read_set(CSR_MIE, MIP_MTIP);
   csr_read_set(CSR_MIE, MIP_MSIP);
 
   //set default stack
@@ -1482,7 +1486,6 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
     goto run_enclave_out;
   }
 
-  // sbi_debug("run: check secure memory\n");
   if(check_and_set_secure_memory(enclave_run_param.free_page, enclave_run_param.size) != 0)
   {
     retval = ENCLAVE_ERROR;
@@ -1505,7 +1508,6 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
     free_mem -= RISCV_PGSIZE;
   }
 
-  // sbi_debug("run: copy page table\n");
   copy_page_table_ret = __copy_page_table((pte_t*) (shadow_enclave->root_page_table), &(enclave->free_pages), 2, (pte_t*)(enclave_run_param.free_page + RISCV_PGSIZE));
   if (copy_page_table_ret < 0)
   {
@@ -1539,7 +1541,6 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
     goto run_enclave_out;
   }
   
-  // sbi_debug("run: begin map\n");
   mmap((uintptr_t*)(enclave->root_page_table), &(enclave->free_pages), ENCLAVE_DEFAULT_KBUFFER, enclave_run_param.kbuffer, enclave_run_param.kbuffer_size);
 
   //check shm
@@ -1558,7 +1559,6 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
 
   copy_word_to_host((unsigned int*)enclave_run_param.eid_ptr, enclave->eid);
 
-  // sbi_debug("run: map relay page\n");
   //map the relay page
   if((retval =map_relay_page(enclave->eid, mm_arg_addr, mm_arg_size, &mmap_offset, enclave, relay_page_entry)) != 0)
   {
@@ -1603,13 +1603,10 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
 
   enclave->state = RUNNING;
 
-  // sbi_debug("shadow enclave begin to run... share memory size %lx\n", enclave->shm_size);
 
   //commented by luxu
-  // sbi_debug("M mode: run shadow enclave mm_arg %lx mm_size %lx...\n", regs[13], regs[14]);
   //sbi_printf("M mode: run shadow enclave...\n");
 
-  // sbi_debug("run: running... relay page address %lx, mm_arg_addr %lx\n", enclave->mm_arg_paddr[0], mm_arg_addr);
 run_enclave_out:
   tlb_remote_sfence();
   return retval;
@@ -1647,7 +1644,7 @@ uintptr_t attest_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t nonce)
 
   if(!attestable)
   {
-    sbi_printf("M mode: attest_enclave: enclave%ld is not attestable\r\n", eid);
+    sbi_printf("M mode: attest_enclave: enclave%ld is not attestable\n", eid);
     return -1UL;
   }
 
@@ -1681,7 +1678,7 @@ uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t n
 
   if(!attestable)
   {
-    sbi_printf("M mode: attest_enclave: enclave%ld is not attestable\r\n", eid);
+    sbi_printf("M mode: attest_enclave: enclave%ld is not attestable\n", eid);
     return -1UL;
   }
   update_hash_shadow_enclave(shadow_enclave, (char *)shadow_enclave->hash, nonce);
@@ -1739,16 +1736,22 @@ uintptr_t resume_enclave(uintptr_t* regs, unsigned int eid)
 
   acquire_enclave_metadata_lock();
   enclave = __get_real_enclave(eid);
-  if(!enclave || enclave->state <= FRESH || enclave->host_ptbr != csr_read(CSR_SATP))
+  if(!enclave || (enclave->state <= INVALID))
   {
-    sbi_bug("M mode: resume_enclave: enclave%d can not be accessed\n", eid);
+    sbi_printf("M mode: resume_enclave: enclave%d is not existed\n", eid);
+    retval = 0UL;
+    goto resume_enclave_out;
+  }
+  if(enclave->state <= FRESH || enclave->host_ptbr != csr_read(CSR_SATP))
+  {
+    sbi_bug("M mode: resume_enclave: enclave%d cannot resume\n", eid);
     retval = -1UL;
     goto resume_enclave_out;
   }
 
   if(enclave->state == STOPPED)
   {
-    sbi_bug("M mode: resume_enclave: enclave%d is stopped\n", eid);
+    // sbi_printf("M mode: resume_enclave: enclave%d is stopped\n", eid);
     retval = ENCLAVE_TIMER_IRQ;
     goto resume_enclave_out;
   }
@@ -1956,7 +1959,7 @@ out:
  * \brief Host calls this function to destroy an existing enclave.
  * 
  * \param regs The host register context.
- * \param eid Resume enclave id.
+ * \param eid Destroyed enclave id.
  */
 uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
 {
@@ -1964,7 +1967,6 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
   struct enclave_t *enclave = NULL;
   uintptr_t dest_hart = 0;
   struct pm_area_struct* pma = NULL;
-  int need_free_enclave_memory = 0;
 
   acquire_enclave_metadata_lock();
 
@@ -1978,7 +1980,7 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
   }
   if(!enclave || enclave->state < FRESH || enclave->type == SERVER_ENCLAVE)
   {
-    sbi_bug("M mode: destroy_enclave: enclave%d can not be accessed\r\n", eid);
+    sbi_bug("M mode: destroy_enclave: enclave%d can not be accessed\n", eid);
     retval = -1UL;
     goto destroy_enclave_out;
   }
@@ -1986,8 +1988,11 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
   if(enclave->state != RUNNING)
   {
     pma = enclave->pma_list;
-    need_free_enclave_memory = 1;
+    sbi_debug("destroy enclave which is not runnable\n");
     __free_enclave(eid);
+    free_enclave_memory(pma);
+    free_all_relay_page(mm_arg_paddr, mm_arg_size);
+    release_enclave_metadata_lock();
   }
   else
   {
@@ -1998,20 +2003,79 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
         dest_hart = i;
     }
     if (dest_hart == csr_read(CSR_MHARTID))
+    {
+      release_enclave_metadata_lock();
+      NEED_DESTORY_ENCLAVE[dest_hart] = 1;
       ipi_destroy_enclave(regs, csr_read(CSR_SATP), eid);
+    }
     else
+    {
+      release_enclave_metadata_lock();
+      NEED_DESTORY_ENCLAVE[dest_hart] = 1;
       set_ipi_destroy_enclave_and_sync(dest_hart, csr_read(CSR_SATP), eid);
+    }
   }
 
 destroy_enclave_out:
-  release_enclave_metadata_lock();
 
-  //should wait after release enclave_metadata_lock to avoid deadlock
-  if(need_free_enclave_memory)
+  return retval;
+}
+
+/**
+ * \brief Host calls this function to stop an existing enclave.
+ * 
+ * \param regs The host register context.
+ * \param eid Stopped enclave id.
+ */
+uintptr_t stop_enclave(uintptr_t* regs, unsigned int eid)
+{
+  uintptr_t retval = 0, dest_hart = 0;
+  struct enclave_t *enclave = NULL;
+  if(check_in_enclave_world() == 0)
   {
-    free_enclave_memory(pma);
-    free_all_relay_page(mm_arg_paddr, mm_arg_size);
+    sbi_bug("M mode: stop_enclave: should not be called by enclave itself\n");
+    return -1UL;
   }
+
+  acquire_enclave_metadata_lock();
+
+  enclave = __get_enclave(eid);
+  if(!enclave || enclave->state <= FRESH || enclave->state == ATTESTING || enclave->state == OCALLING || enclave->host_ptbr != csr_read(CSR_SATP) || enclave->type == SERVER_ENCLAVE)
+  {
+    sbi_bug("M mode: stop_enclave: enclave%d can not be accessed!\n", eid);
+    retval = -1UL;
+    goto stop_enclave_out;
+  }
+
+  //printm("M mode: stop_enclave: now we stop enclave%d\n", eid);
+  if(enclave->state != RUNNING)
+  {
+    //printm("enclave %d is not running, no need to send ipi\n", eid);
+    enclave->state = STOPPED;
+  }
+  else
+  {
+    //cpus' state will be protected by enclave_metadata_lock
+    for(int i = 0; i < MAX_HARTS; ++i)
+    {
+      if(cpus[i].in_enclave && cpus[i].eid == eid)
+        dest_hart = i;
+    }
+    if (dest_hart == csr_read(CSR_MHARTID))
+    {
+      release_enclave_metadata_lock();
+      NEED_STOP_ENCLAVE[dest_hart] = 1;
+      ipi_stop_enclave(regs, csr_read(CSR_SATP), eid);
+    }
+    else
+    {
+      release_enclave_metadata_lock();
+      NEED_STOP_ENCLAVE[dest_hart] = 1;
+      set_ipi_stop_enclave_and_sync(dest_hart, csr_read(CSR_SATP), eid);
+    }
+  }
+
+stop_enclave_out:
 
   return retval;
 }
@@ -2596,6 +2660,20 @@ uintptr_t do_timer_irq(uintptr_t *regs, uintptr_t mcause, uintptr_t mepc)
   unsigned int eid = get_curr_enclave_id();
   struct enclave_t *enclave = NULL;
 
+  // Enclave need to be destroyed, no longer needs to do the time irq
+  if (NEED_DESTORY_ENCLAVE[csr_read(CSR_MHARTID)] == 1)
+  {
+    retval = ipi_destroy_enclave(regs, csr_read(CSR_SATP), eid);
+    return retval;
+  }
+
+  // Enclave need to be destroyed, no longer needs to do the time irq
+  if (NEED_STOP_ENCLAVE[csr_read(CSR_MHARTID)] == 1)
+  {
+    retval = ipi_stop_enclave(regs, csr_read(CSR_SATP), eid);
+    return retval;
+  }
+
   acquire_enclave_metadata_lock();
 
   enclave = __get_enclave(eid);
@@ -2651,7 +2729,7 @@ timer_irq_out:
 }
 
 /**
- * \brief IPI notifaction for destroy enclave.
+ * \brief IPI notifaction to destroy enclave.
  * 
  * \param regs The enclave register context.
  * \param host_ptbr host ptbr register.
@@ -2665,8 +2743,8 @@ uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid)
   int need_free_enclave_memory = 0;
 
   // TODO acquire the enclave metadata lock
-  // acquire_enclave_metadata_lock();
-  // printm("M mode: ipi_destroy_enclave %d\r\n", eid);
+  acquire_enclave_metadata_lock();
+  // printm("M mode: ipi_destroy_enclave %d\n", eid);
 
   enclave = __get_enclave(eid);
   unsigned long mm_arg_paddr[RELAY_PAGE_NUM];
@@ -2682,7 +2760,7 @@ uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid)
   if(!enclave || enclave->state < FRESH)
   {
     ret = -1;
-    sbi_bug("M mode: ipi_stop_enclave: enclave is not existed!\r\n");
+    sbi_bug("M mode: ipi_stop_enclave: enclave is not existed!\n");
     goto ipi_stop_enclave_out;
   }
 
@@ -2690,7 +2768,7 @@ uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid)
   if(enclave->state == RUNNING
       && (check_in_enclave_world() < 0 || cpus[csr_read(CSR_MHARTID)].eid != eid))
   {
-    sbi_bug("[ERROR] M mode: ipi_stop_enclave: this situation should never happen!\r\n");
+    sbi_bug("[ERROR] M mode: ipi_stop_enclave: this situation should never happen!\n");
     ret = -1;
     goto ipi_stop_enclave_out;
   }
@@ -2704,9 +2782,10 @@ uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid)
   pma = enclave->pma_list;
   need_free_enclave_memory = 1;
   __free_enclave(eid);
+  NEED_DESTORY_ENCLAVE[csr_read(CSR_MHARTID)] =0;
 
 ipi_stop_enclave_out:
-  // release_enclave_metadata_lock();
+  release_enclave_metadata_lock();
 
   if(need_free_enclave_memory)
   {
@@ -2715,8 +2794,57 @@ ipi_stop_enclave_out:
   }
   regs[10] = 0;
 	regs[11] = 0;
+
   return ret;
 }
+
+/**
+ * \brief IPI notifaction to stop enclave.
+ * 
+ * \param regs The enclave register context.
+ * \param host_ptbr host ptbr register.
+ * \param eid The enclave id.
+ */
+uintptr_t ipi_stop_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid)
+{
+  uintptr_t ret = 0;
+  struct enclave_t* enclave = NULL;
+
+  acquire_enclave_metadata_lock();
+
+  enclave = __get_enclave(eid);
+
+  //enclave may have exited or even assigned to other host
+  //after ipi sender release the enclave_metadata_lock
+  if(!enclave || enclave->state <= FRESH || enclave->host_ptbr != host_ptbr || enclave->state == OCALLING)
+  {
+    ret = -1UL;
+    goto ipi_stop_enclave_out;
+  }
+
+  //this situation should never happen
+  if(enclave->state == RUNNING
+      && (check_in_enclave_world() < 0 || cpus[csr_read(CSR_MHARTID)].eid != eid))
+  {
+    sbi_bug("[ERROR] M mode: ipi_stop_enclave: this situation should never happen!\n");
+    ret = -1;
+    goto ipi_stop_enclave_out;
+  }
+
+  if(enclave->state == RUNNING)
+  {
+    swap_from_enclave_to_host(regs, enclave);
+    regs[10] = ENCLAVE_TIMER_IRQ;
+  }
+  enclave->state = STOPPED;
+  NEED_STOP_ENCLAVE[csr_read(CSR_MHARTID)] = 0;
+
+
+ipi_stop_enclave_out:
+  release_enclave_metadata_lock();
+  return ret;
+}
+
 
 /**
  * \brief Enclave call read in the runtime, ocall to the host to handle.

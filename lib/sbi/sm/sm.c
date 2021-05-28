@@ -801,9 +801,12 @@ uintptr_t sm_run_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t enclave_run_a
  */
 uintptr_t sm_stop_enclave(uintptr_t* regs, uintptr_t eid)
 {
-  //TODO
+  uintptr_t retval = 0;
 
-  return 0;
+  retval = stop_enclave(regs, (unsigned int)eid);
+
+  return retval;
+
 }
 
 /**
@@ -812,10 +815,9 @@ uintptr_t sm_stop_enclave(uintptr_t* regs, uintptr_t eid)
  * \param regs The host reg.
  * \param eid The enclave id.
  */
-uintptr_t sm_resume_enclave(uintptr_t* regs, uintptr_t eid)
+uintptr_t sm_resume_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t resume_func_id)
 {
   uintptr_t retval = 0;
-  uintptr_t resume_func_id = regs[11];
   switch(resume_func_id)
   {
     case RESUME_FROM_TIMER_IRQ:

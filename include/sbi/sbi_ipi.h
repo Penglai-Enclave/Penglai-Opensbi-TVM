@@ -77,4 +77,6 @@ int sbi_ipi_init(struct sbi_scratch *scratch, bool cold_boot);
 
 void sbi_ipi_exit(struct sbi_scratch *scratch);
 
+// const char *sbi_return_ipi_event_name();
+
 #endif

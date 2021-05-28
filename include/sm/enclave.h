@@ -181,6 +181,7 @@ int cpu_eid(int i);
 int check_in_enclave_world();
 int get_curr_enclave_id();
 struct enclave_t* __get_enclave(int eid);
+struct enclave_t* __get_real_enclave(int eid);
 
 uintptr_t copy_from_host(void* dest, void* src, size_t size);
 uintptr_t copy_to_host(void* dest, void* src, size_t size);

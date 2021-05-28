@@ -15,9 +15,16 @@
 #include "sm/enclave.h"
 #include "sm/sm.h"
 
+//All hards need to ne notified
 int CPU_IN_CRITICAL=0xFFFFFFFF;
+// The hart needs to flush TLB
 int CPU_FLUSH_TAG=0x0;
 int CPU_NEED_FLUSH[MAX_HARTS] = {0, };
+
+// The hart needs to destroy an enclave
+bool NEED_DESTORY_ENCLAVE[MAX_HARTS] = {0, };
+// The hart needs to stop an enclave
+bool NEED_STOP_ENCLAVE[MAX_HARTS] = {0, };
 
 spinlock_t cpu_in_critical_lock = SPINLOCK_INIT;
 
