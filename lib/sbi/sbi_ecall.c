@@ -23,6 +23,8 @@ int CPU_NEED_FLUSH[MAX_HARTS] = {0, };
 
 // The hart needs to destroy an enclave
 bool NEED_DESTORY_ENCLAVE[MAX_HARTS] = {0, };
+// The hart needs to stop an enclave
+bool NEED_STOP_ENCLAVE[MAX_HARTS] = {0, };
 
 spinlock_t cpu_in_critical_lock = SPINLOCK_INIT;
 
