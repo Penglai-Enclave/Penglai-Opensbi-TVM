@@ -1081,7 +1081,7 @@ uintptr_t sm_server_enclave_acquire(uintptr_t *regs, uintptr_t server_name)
 }
 
 /**
- * \brief This transitional function gets the enclave id.
+ * \brief This transitional function gets the caller enclave id.
  * 
  * \param regs The enclave regs.
  */
@@ -1090,6 +1090,20 @@ uintptr_t sm_get_caller_id(uintptr_t *regs)
   uintptr_t ret = 0;
 
   ret = get_caller_id(regs);
+
+  return ret;
+}
+
+/**
+ * \brief This transitional function gets the enclave id.
+ * 
+ * \param regs The enclave regs.
+ */
+uintptr_t sm_get_enclave_id(uintptr_t *regs)
+{
+  uintptr_t ret = 0;
+
+  ret = get_enclave_id(regs);
 
   return ret;
 }

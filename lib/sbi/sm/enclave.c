@@ -2084,6 +2084,40 @@ stop_enclave_out:
 /*                   called by enclave                        */
 /**************************************************************/
 /**
+ * \brief Get the enclave id.
+ */
+uintptr_t get_enclave_id(uintptr_t* regs)
+{
+  uintptr_t ret = 0;
+  struct enclave_t *enclave = NULL;
+  int eid = 0; 
+  if(check_in_enclave_world() < 0)
+  {
+    return -1UL;
+  }
+
+  acquire_enclave_metadata_lock();
+
+  eid = get_curr_enclave_id();
+  enclave = __get_enclave(eid);
+  if(!enclave)
+  {
+    ret = -1UL;
+    goto failed;
+  }
+
+  ret = eid;
+
+  release_enclave_metadata_lock();
+  return ret;
+
+failed:
+  release_enclave_metadata_lock();
+  sbi_bug("M MODE: get_enclave_id: failed\n");
+  return ret;
+}
+
+/**
  * \brief Exit from the enclave.
  * 
  * \param regs The host register context.

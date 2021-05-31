@@ -434,9 +434,9 @@ failed:
 }
 
 
-/* Retrive the eid of the caller enclave  */
+/* Retrive the eid of the caller enclave  */
 /**
- * \brief Get the enclave id.
+ * \brief Get the caller enclave id.
  */
 uintptr_t get_caller_id(uintptr_t* regs)
 {
@@ -458,7 +458,7 @@ uintptr_t get_caller_id(uintptr_t* regs)
     goto failed;
   }
 
-  ret = enclave->caller_eid;;
+  ret = enclave->caller_eid;
 
   release_enclave_metadata_lock();
   return ret;

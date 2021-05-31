@@ -254,6 +254,9 @@ struct relay_page_entry_t* __alloc_relay_page_entry(char *enclave_name, unsigned
 int free_all_relay_page(unsigned long *mm_arg_paddr, unsigned long *mm_arg_size);
 uintptr_t change_relay_page_ownership(unsigned long relay_page_addr, unsigned long relay_page_size, char *enclave_name);
 
+// Get enclave id
+uintptr_t get_enclave_id(uintptr_t* regs);
+
 #define ENTRY_PER_METADATA_REGION 100
 #define ENTRY_PER_RELAY_PAGE_REGION 20
 

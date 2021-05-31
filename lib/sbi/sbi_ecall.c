@@ -144,6 +144,9 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 		case SBI_GET_CALLER_ID:
 			retval = sm_get_caller_id((uintptr_t*)regs);
 			break;
+		case SBI_GET_ENCLAVE_ID:
+			retval = sm_get_enclave_id((uintptr_t*)regs);
+			break;
 		case SBI_CALL_ENCLAVE:
 			retval = sm_call_enclave((uintptr_t*)regs, arg0, arg1);
 			break;
