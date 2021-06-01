@@ -116,11 +116,25 @@ void sbi_ecall_unregister_extension(struct sbi_ecall_extension *ext)
 int enclave_call_trap(struct sbi_trap_regs* regs)
 {
 	unsigned long retval;
+	if (regs->a6 != SBI_EXT_PENGLAI_ENCLAVE)
+	{
+		if(check_in_enclave_world() == 0)
+		{
+			destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
+			regs->mepc = csr_read(CSR_MEPC);
+			regs->mstatus = csr_read(CSR_MSTATUS);
+			regs->a0 = -1; 
+			sbi_bug("M mode: enclave_call_trap: illegal user ecall\n");
+			return 0;
+		}
+		return 0;
+	}
+
 	if(check_in_enclave_world() < 0){
 		retval = SBI_ERR_FAILED;
 		regs->mepc += 4;
 		regs->a0 = retval;
-		sbi_printf("M mode: %s check in enclave world is failed \n", __func__);
+		sbi_bug("M mode: enclave_call_trap: check in enclave world is failed \n");
 		return 0;
 	}
 
@@ -164,6 +178,15 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 			break;
 		default:
 			retval = SBI_ERR_FAILED;
+			sbi_bug("M mode: enclave_call_trap: unsupported ecall from enclave\n");
+			if(check_in_enclave_world() == 0)
+			{
+				destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
+				regs->mepc = csr_read(CSR_MEPC);
+				regs->mstatus = csr_read(CSR_MSTATUS);
+				regs->a0 = -1; 
+				return 0;
+			}
 			break;
 	}
 
@@ -210,7 +233,7 @@ int sbi_ecall_handler(struct sbi_trap_regs *regs)
 	args[5] = regs->a5;
 	// sbi_printf("SBI ECALL extension_id is %lx func_id is %lx\n", extension_id, func_id);
 	ext = sbi_ecall_find_extension(extension_id);
-	if (extension_id != SBI_EXT_PENGLAI)
+	if (extension_id != SBI_EXT_PENGLAI_HOST)
 	{
 		if (ext && ext->handle) {
 			ret = ext->handle(extension_id, func_id,
@@ -241,11 +264,11 @@ int sbi_ecall_handler(struct sbi_trap_regs *regs)
 	}
 	
 
-	if ((ret == SBI_ETRAP) && (extension_id != SBI_EXT_PENGLAI)) {
+	if ((ret == SBI_ETRAP) && (extension_id != SBI_EXT_PENGLAI_HOST)) {
 		trap.epc = regs->mepc;
 		sbi_trap_redirect(regs, &trap);
 	} else {
-		if ((ret < SBI_LAST_ERR) && (extension_id != SBI_EXT_PENGLAI)) {
+		if ((ret < SBI_LAST_ERR) && (extension_id != SBI_EXT_PENGLAI_HOST)) {
 			sbi_printf("%s: Invalid error %d for ext=0x%lx "
 				   "func=0x%lx\n", __func__, ret,
 				   extension_id, func_id);
@@ -260,7 +283,7 @@ int sbi_ecall_handler(struct sbi_trap_regs *regs)
 		 * accordingly for now. Once fatal errors are defined, that
 		 * case should be handled differently.
 		 */
-		if (extension_id != SBI_EXT_PENGLAI)
+		if (extension_id != SBI_EXT_PENGLAI_HOST)
 		{
 			regs->mepc += 4;
 			regs->a0 = ret;

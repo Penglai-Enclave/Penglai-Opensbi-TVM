@@ -6,6 +6,7 @@
 #include "sbi/sbi_ipi_stop_enclave.h"
 #include "sbi/sbi_console.h"
 #include "sm/enclave.h"
+#include "sm/server_enclave.h"
 #include "sm/enclave_vm.h"
 #include "sm/enclave_mm.h"
 #include "sm/sm.h"
@@ -1021,7 +1022,6 @@ static int __enclave_return(uintptr_t* regs, struct enclave_t* callee_enclave, s
   swap_prev_mideleg(&(caller_enclave->thread_context), callee_enclave->thread_context.prev_mideleg);
   swap_prev_medeleg(&(caller_enclave->thread_context), callee_enclave->thread_context.prev_medeleg);
   swap_prev_mepc(&(caller_enclave->thread_context), callee_enclave->thread_context.prev_mepc);
-
   //restore caller's host context
   sbi_memcpy((void*)(&(caller_enclave->thread_context.prev_state)), (void*)(&(callee_enclave->thread_context.prev_state)), sizeof(struct general_registers_t));
 
@@ -1967,10 +1967,18 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
   struct enclave_t *enclave = NULL;
   uintptr_t dest_hart = 0;
   struct pm_area_struct* pma = NULL;
-
+  int top_caller_id;
+  struct enclave_t *top_caller_enclave = NULL;
+  unsigned long satp = 0;
   acquire_enclave_metadata_lock();
 
   enclave = __get_enclave(eid);
+
+  if(check_in_enclave_world() == 0)
+    satp = enclave->host_ptbr;
+  else
+    satp = csr_read(CSR_SATP);
+
   unsigned long mm_arg_paddr[RELAY_PAGE_NUM];
   unsigned long mm_arg_size[RELAY_PAGE_NUM];
   for(int kk = 0; kk < RELAY_PAGE_NUM; kk++)
@@ -1978,21 +1986,30 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
     mm_arg_paddr[kk] = enclave->mm_arg_paddr[kk];
     mm_arg_size[kk] = enclave->mm_arg_size[kk];
   }
-  if(!enclave || enclave->state < FRESH || enclave->type == SERVER_ENCLAVE)
+  if(!enclave || enclave->state < FRESH)
   {
     sbi_bug("M mode: destroy_enclave: enclave%d can not be accessed\n", eid);
     retval = -1UL;
+    release_enclave_metadata_lock();
     goto destroy_enclave_out;
   }
 
   if(enclave->state != RUNNING)
   {
-    pma = enclave->pma_list;
-    sbi_debug("destroy enclave which is not runnable\n");
-    __free_enclave(eid);
-    free_enclave_memory(pma);
-    free_all_relay_page(mm_arg_paddr, mm_arg_size);
-    release_enclave_metadata_lock();
+    if (enclave->type == SERVER_ENCLAVE)
+    {
+      release_enclave_metadata_lock();
+      destroy_server_enclave(regs, eid);
+    }
+    else
+    {
+      pma = enclave->pma_list;
+      sbi_debug("destroy enclave which is not runnable\n");
+      __free_enclave(eid);
+      free_enclave_memory(pma);
+      free_all_relay_page(mm_arg_paddr, mm_arg_size);
+      release_enclave_metadata_lock();
+    }
   }
   else
   {
@@ -2004,15 +2021,31 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
     }
     if (dest_hart == csr_read(CSR_MHARTID))
     {
-      release_enclave_metadata_lock();
       NEED_DESTORY_ENCLAVE[dest_hart] = 1;
-      ipi_destroy_enclave(regs, csr_read(CSR_SATP), eid);
+      if(enclave->type == SERVER_ENCLAVE)
+      {
+        top_caller_id = enclave->top_caller_eid;
+        top_caller_enclave = __get_enclave(top_caller_id);
+        __enclave_return(regs, enclave, top_caller_enclave, top_caller_enclave);
+        enclave->state = RUNNABLE;
+        top_caller_enclave->state = RUNNING;
+        eid = top_caller_id;
+      }
+      release_enclave_metadata_lock();
+      ipi_destroy_enclave(regs, satp, eid);
     }
     else
     {
-      release_enclave_metadata_lock();
+      if(enclave->type == SERVER_ENCLAVE)
+      {
+        sbi_bug("M mode: destroy_enclave: destroy a server enclane%d which is not running\n", eid);
+        retval = -1UL;
+        release_enclave_metadata_lock();
+        goto destroy_enclave_out;
+      }
       NEED_DESTORY_ENCLAVE[dest_hart] = 1;
-      set_ipi_destroy_enclave_and_sync(dest_hart, csr_read(CSR_SATP), eid);
+      release_enclave_metadata_lock();
+      set_ipi_destroy_enclave_and_sync(dest_hart, satp, eid);
     }
   }
 
@@ -2529,6 +2562,7 @@ uintptr_t call_enclave(uintptr_t* regs, unsigned int callee_eid, uintptr_t arg)
   retval = call_arg.req_arg;
 
   callee_enclave->state = RUNNING;
+  caller_enclave->state = RUNNABLE;
 out:
   release_enclave_metadata_lock();
   return retval;
@@ -2672,6 +2706,7 @@ restore_resp_addr:
 restore_return_val:
   call_arg->resp_val = ret_arg.resp_val;
   enclave->state = RUNNABLE;
+  caller_enclave->state = RUNNING;
   ret = 0;
 out:
   release_enclave_metadata_lock();
@@ -2791,10 +2826,10 @@ uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid)
 
   //enclave may have exited or even assigned to other host
   //after ipi sender release the enclave_metadata_lock
-  if(!enclave || enclave->state < FRESH)
+  if(!enclave || enclave->state < FRESH || enclave->host_ptbr != host_ptbr)
   {
     ret = -1;
-    sbi_bug("M mode: ipi_stop_enclave: enclave is not existed!\n");
+    sbi_bug("M mode: ipi_stop_enclave: enclave is not existed or is illegal to destroy!\n");
     goto ipi_stop_enclave_out;
   }
 
@@ -2828,7 +2863,6 @@ ipi_stop_enclave_out:
   }
   regs[10] = 0;
 	regs[11] = 0;
-
   return ret;
 }
 

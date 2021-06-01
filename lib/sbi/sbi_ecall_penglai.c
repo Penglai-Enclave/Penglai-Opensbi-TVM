@@ -89,7 +89,7 @@ static int sbi_ecall_penglai_handler(unsigned long extid, unsigned long funcid,
 }
 
 struct sbi_ecall_extension ecall_pengali = {
-	.extid_start = SBI_EXT_PENGLAI,
-	.extid_end = SBI_EXT_PENGLAI,
+	.extid_start = SBI_EXT_PENGLAI_HOST,
+	.extid_end = SBI_EXT_PENGLAI_HOST,
 	.handle = sbi_ecall_penglai_handler,
 };
