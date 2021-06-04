@@ -1653,7 +1653,7 @@ uintptr_t attest_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t nonce)
   sbi_memcpy((void*)(report.sm.sm_pub_key), (void*)SM_PUB_KEY, PUBLIC_KEY_SIZE);
   sbi_memcpy((void*)(report.sm.signature), (void*)SM_SIGNATURE, SIGNATURE_SIZE);
 
-  hash_enclave(enclave, (void*)(report.enclave.hash), nonce);
+  update_enclave_hash((char *)(report.enclave.hash), (char *)enclave->hash, nonce);
   sign_enclave((void*)(report.enclave.signature), (void*)(report.enclave.hash));
   report.enclave.nonce = nonce;
 
@@ -1681,8 +1681,7 @@ uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t n
     sbi_printf("M mode: attest_enclave: enclave%ld is not attestable\n", eid);
     return -1UL;
   }
-  update_hash_shadow_enclave(shadow_enclave, (char *)shadow_enclave->hash, nonce);
-  sbi_memcpy((char *)(report.enclave.hash), (char *)shadow_enclave->hash, HASH_SIZE);
+  update_enclave_hash((char *)(report.enclave.hash), (char *)shadow_enclave->hash, nonce);
   sbi_memcpy((void*)(report.dev_pub_key), (void*)DEV_PUB_KEY, PUBLIC_KEY_SIZE);
   sbi_memcpy((void*)(report.sm.hash), (void*)SM_HASH, HASH_SIZE);
   sbi_memcpy((void*)(report.sm.sm_pub_key), (void*)SM_PUB_KEY, PUBLIC_KEY_SIZE);
@@ -2126,6 +2125,7 @@ uintptr_t get_enclave_id(uintptr_t* regs)
   int eid = 0; 
   if(check_in_enclave_world() < 0)
   {
+    sbi_bug("M mode: get_enclave_id: CPU is not in the enclave mode\n");
     return -1UL;
   }
 
@@ -2133,20 +2133,73 @@ uintptr_t get_enclave_id(uintptr_t* regs)
 
   eid = get_curr_enclave_id();
   enclave = __get_enclave(eid);
-  if(!enclave)
+  if(!enclave || check_enclave_authentication(enclave)!=0 || enclave->state != RUNNING)
   {
     ret = -1UL;
-    goto failed;
+    sbi_bug("M mode: get_enclave_id: enclave%d can not be accessed!\n", eid);
+    goto out;
   }
 
   ret = eid;
 
+out:
   release_enclave_metadata_lock();
   return ret;
+}
 
-failed:
+/**
+ * \brief Get enclave attestation report.
+ *
+ * \param report The attestation report address in enclave.
+ * \param nonce The attestation nonce
+ */
+uintptr_t get_enclave_attest_report(uintptr_t *report, uintptr_t nonce)
+{
+  uintptr_t ret = 0;
+  struct enclave_t *enclave = NULL;
+  int eid = 0; 
+  if(check_in_enclave_world() < 0)
+  {
+    sbi_bug("M mode: get_enclave_attest_report: CPU is not in the enclave mode\n");
+    return -1UL;
+  }
+
+  acquire_enclave_metadata_lock();
+
+  eid = get_curr_enclave_id();
+  enclave = __get_enclave(eid);
+  if(!enclave|| check_enclave_authentication(enclave)!=0 || enclave->state != RUNNING)
+  {
+    ret = -1UL;
+    sbi_bug("M mode: get_enclave_attest_report: enclave%d can not be accessed!\n", eid);
+    goto out;
+  }
+
+  // Get the physical address of the attestaion report
+  struct report_t m_report;
+  struct report_t* u_report = va_to_pa((uintptr_t*)(enclave->root_page_table), (void*)report);
+  if(!u_report)
+  {
+    sbi_bug("M mode: get_enclave_attest_report: report is not existed \n");
+    ret = -1UL;
+    goto out;
+  }
+  
+  sbi_memcpy((void*)(m_report.dev_pub_key), (void*)DEV_PUB_KEY, PUBLIC_KEY_SIZE);
+  sbi_memcpy((void*)(m_report.sm.hash), (void*)SM_HASH, HASH_SIZE);
+  sbi_memcpy((void*)(m_report.sm.sm_pub_key), (void*)SM_PUB_KEY, PUBLIC_KEY_SIZE);
+  sbi_memcpy((void*)(m_report.sm.signature), (void*)SM_SIGNATURE, SIGNATURE_SIZE);
+
+  hash_enclave(enclave, (void*)(m_report.enclave.hash), nonce);
+  sign_enclave((void*)(m_report.enclave.signature), (void*)(m_report.enclave.hash));
+  m_report.enclave.nonce = nonce;
+
+  // Copy attestation report to enclave
+  copy_from_host(u_report, &m_report, sizeof(struct report_t));
+
+
+out:
   release_enclave_metadata_lock();
-  sbi_bug("M MODE: get_enclave_id: failed\n");
   return ret;
 }
 
@@ -2455,9 +2508,9 @@ uintptr_t call_enclave(uintptr_t* regs, unsigned int callee_eid, uintptr_t arg)
     top_caller_enclave = __get_enclave(caller_enclave->top_caller_eid);
   else
     top_caller_enclave = caller_enclave;
-  if(!top_caller_enclave || top_caller_enclave->state != RUNNING)
+  if(!top_caller_enclave)
   {
-    sbi_bug("M mode: call_enclave: enclave%d can not execute call_enclave!\n", caller_eid);
+    sbi_bug("M mode: call_enclave: top_caller_enclave%d can not execute call_enclave!\n", caller_enclave->top_caller_eid);
     retval = -1UL;
     goto out;
   }

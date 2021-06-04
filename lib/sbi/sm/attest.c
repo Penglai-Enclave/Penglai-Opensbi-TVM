@@ -94,7 +94,7 @@ void hash_shadow_enclave(struct shadow_enclave_t *enclave, void* hash, uintptr_t
   sm3_final(&hash_ctx, hash);
 }
 
-void update_hash_shadow_enclave(struct shadow_enclave_t *enclave, void* hash, uintptr_t nonce_arg)
+void update_enclave_hash(char *output, void* hash, uintptr_t nonce_arg)
 {
   struct sm3_context hash_ctx;
   uintptr_t nonce = nonce_arg;
@@ -107,6 +107,7 @@ void update_hash_shadow_enclave(struct shadow_enclave_t *enclave, void* hash, ui
 
   sm3_final(&hash_ctx, hash);
 }
+
 void sign_enclave(void* signature_arg, void* hash)
 {
   struct signature_t *signature = (struct signature_t*)signature_arg;

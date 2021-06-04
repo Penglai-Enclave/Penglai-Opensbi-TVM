@@ -7,7 +7,7 @@ void hash_enclave(struct enclave_t* enclave, void* hash, uintptr_t nonce);
 
 void hash_shadow_enclave(struct shadow_enclave_t* enclave, void* hash, uintptr_t nonce);
 
-void update_hash_shadow_enclave(struct shadow_enclave_t *enclave, void* hash, uintptr_t nonce_arg);
+void update_enclave_hash(char *output, void* hash, uintptr_t nonce_arg);
 
 void sign_enclave(void* signature, void* hash);
 

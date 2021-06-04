@@ -1075,7 +1075,26 @@ uintptr_t sm_server_enclave_acquire(uintptr_t *regs, uintptr_t server_name)
 {
   uintptr_t ret = 0;
 
-  ret = acquire_server_enclave(regs, (char*)server_name);
+  ret = acquire_server_enclave((char*)server_name);
+
+  return ret;
+}
+
+/**
+ * \brief Get the enclave attestation report.
+ * 
+ * \param regs   The enclave reg.
+ * \param name   Enclave name, NULL for current enclave.
+ * \param report Attestatio n.
+ */
+uintptr_t sm_get_report(uintptr_t *regs, char* name, uintptr_t *report, uintptr_t nonce)
+{
+  uintptr_t ret = 0;
+
+  if (name == NULL)
+    ret = get_enclave_attest_report(report, nonce);
+  else
+    ret = get_server_enclave_attest_report(name, report, nonce);
 
   return ret;
 }

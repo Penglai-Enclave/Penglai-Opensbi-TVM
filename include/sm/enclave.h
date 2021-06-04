@@ -230,6 +230,7 @@ uintptr_t enclave_return(uintptr_t *regs, uintptr_t arg);
 uintptr_t asyn_enclave_call(uintptr_t *regs, uintptr_t enclave_name, uintptr_t arg);
 uintptr_t split_mem_region(uintptr_t *regs, uintptr_t mem_addr, uintptr_t mem_size, uintptr_t split_addr);
 uintptr_t exit_enclave(uintptr_t* regs, unsigned long retval);
+uintptr_t get_enclave_attest_report(uintptr_t *report, uintptr_t nonce);
 // Ocall operations
 uintptr_t enclave_mmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size);
 uintptr_t enclave_unmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size);

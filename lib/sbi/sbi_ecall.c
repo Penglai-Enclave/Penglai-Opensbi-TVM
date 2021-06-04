@@ -14,6 +14,7 @@
 #include <sbi/sbi_trap.h>
 #include "sm/enclave.h"
 #include "sm/sm.h"
+#include "sm/syscall.h"
 
 //All hards need to ne notified
 int CPU_IN_CRITICAL=0xFFFFFFFF;
@@ -115,26 +116,32 @@ void sbi_ecall_unregister_extension(struct sbi_ecall_extension *ext)
 
 int enclave_call_trap(struct sbi_trap_regs* regs)
 {
-	unsigned long retval;
-	if (regs->a6 != SBI_EXT_PENGLAI_ENCLAVE)
+	unsigned long retval = 0;
+
+	if(check_in_enclave_world() < 0) 
 	{
-		if(check_in_enclave_world() == 0)
-		{
-			destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
-			regs->mepc = csr_read(CSR_MEPC);
-			regs->mstatus = csr_read(CSR_MSTATUS);
-			regs->a0 = -1; 
-			sbi_bug("M mode: enclave_call_trap: illegal user ecall\n");
-			return 0;
-		}
+		retval = SBI_ERR_FAILED;
+		regs->mepc += 4;
+		regs->mstatus = csr_read(CSR_MSTATUS);
+		regs->a0 = retval;
+		sbi_bug("M mode: enclave_call_trap: check in enclave world is failed \n");
 		return 0;
 	}
 
-	if(check_in_enclave_world() < 0){
-		retval = SBI_ERR_FAILED;
-		regs->mepc += 4;
-		regs->a0 = retval;
-		sbi_bug("M mode: enclave_call_trap: check in enclave world is failed \n");
+	if (regs->a6 != SBI_EXT_PENGLAI_ENCLAVE)
+	{
+		if (regs->a7 == __NR_ioctl)
+		{
+			regs->a0 = retval;
+			regs->mepc = regs->mepc + 4;
+			regs->mstatus = csr_read(CSR_MSTATUS);
+			return 0;
+		}
+		destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
+		regs->mepc = csr_read(CSR_MEPC);
+		regs->mstatus = csr_read(CSR_MSTATUS);
+		regs->a0 = -1; 
+		sbi_bug("M mode: enclave_call_trap: illegal user ecall\n");
 		return 0;
 	}
 
@@ -176,9 +183,13 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 		case SBI_YIELD:
 			retval = sm_handle_yield((uintptr_t*)regs);
 			break;
+		case SBI_GET_REPORT:
+			retval = sm_get_report((uintptr_t*)regs, (char*)arg0, (uintptr_t*)arg1, arg2);
+			break;
+
 		default:
 			retval = SBI_ERR_FAILED;
-			sbi_bug("M mode: enclave_call_trap: unsupported ecall from enclave\n");
+			sbi_bug("M mode: enclave_call_trap: unsupported ecall%lx from enclave\n", n);
 			if(check_in_enclave_world() == 0)
 			{
 				destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
