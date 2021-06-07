@@ -15,7 +15,8 @@ struct server_enclave_t
 
 uintptr_t create_server_enclave(enclave_create_param_t create_args);
 uintptr_t destroy_server_enclave(uintptr_t* regs, unsigned int eid);
-uintptr_t acquire_server_enclave(uintptr_t *regs, char *server_name);
+uintptr_t acquire_server_enclave(char *server_name);
 uintptr_t get_caller_id(uintptr_t* regs);
+uintptr_t get_server_enclave_attest_report(char* name, uintptr_t *report, uintptr_t nonce);
 
 #endif /* _SERVER_ENCLAVE_H */

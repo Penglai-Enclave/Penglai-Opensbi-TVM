@@ -230,6 +230,7 @@ uintptr_t enclave_return(uintptr_t *regs, uintptr_t arg);
 uintptr_t asyn_enclave_call(uintptr_t *regs, uintptr_t enclave_name, uintptr_t arg);
 uintptr_t split_mem_region(uintptr_t *regs, uintptr_t mem_addr, uintptr_t mem_size, uintptr_t split_addr);
 uintptr_t exit_enclave(uintptr_t* regs, unsigned long retval);
+uintptr_t get_enclave_attest_report(uintptr_t *report, uintptr_t nonce);
 // Ocall operations
 uintptr_t enclave_mmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size);
 uintptr_t enclave_unmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size);
@@ -253,6 +254,9 @@ int __free_relay_page_entry(unsigned long relay_page_addr, unsigned long relay_p
 struct relay_page_entry_t* __alloc_relay_page_entry(char *enclave_name, unsigned long relay_page_addr, unsigned long relay_page_size);
 int free_all_relay_page(unsigned long *mm_arg_paddr, unsigned long *mm_arg_size);
 uintptr_t change_relay_page_ownership(unsigned long relay_page_addr, unsigned long relay_page_size, char *enclave_name);
+
+// Get enclave id
+uintptr_t get_enclave_id(uintptr_t* regs);
 
 #define ENTRY_PER_METADATA_REGION 100
 #define ENTRY_PER_RELAY_PAGE_REGION 20

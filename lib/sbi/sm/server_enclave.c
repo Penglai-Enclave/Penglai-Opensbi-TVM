@@ -4,6 +4,7 @@
 #include "sm/enclave_mm.h"
 #include "sm/server_enclave.h"
 #include "sm/ipi.h"
+#include "sm/attest.h"
 #include "sbi/sbi_string.h"
 #include "sbi/sbi_console.h"
 
@@ -314,6 +315,8 @@ uintptr_t create_server_enclave(enclave_create_param_t create_args)
     enclave->shm_paddr = 0;
     enclave->shm_size = 0;
   }
+
+  hash_enclave(enclave, (void*)(enclave->hash), 0);
   copy_word_to_host((unsigned int*)create_args.eid_ptr, enclave->eid);
   release_enclave_metadata_lock();
   return ret;
@@ -357,6 +360,7 @@ uintptr_t destroy_server_enclave(uintptr_t* regs, unsigned int eid)
     retval = -1UL;
     goto out;
   }
+
   sbi_memset((void*)server_enclave, 0, sizeof(struct server_enclave_t));
 
   if(enclave->state != RUNNING)
@@ -388,7 +392,7 @@ out:
  *
  * \param server_name_u The acquired server enclave name.
  */
-uintptr_t acquire_server_enclave(uintptr_t *regs, char* server_name_u)
+uintptr_t acquire_server_enclave(char* server_name_u)
 {
   uintptr_t ret = 0;
   struct enclave_t *enclave = NULL;
@@ -433,10 +437,73 @@ failed:
   return ret;
 }
 
-
-/* Retrive the eid of the caller enclave  */
 /**
- * \brief Get the enclave id.
+ * \brief Get the attestation report of local enclave with the given enclave name.
+ *
+ * \param name The attested enclave name
+ * \param report The attestation report address in the caller enclave.
+ * \param nonce The attestation nonce
+ */
+uintptr_t get_server_enclave_attest_report(char* name, uintptr_t *report, uintptr_t nonce)
+{
+  uintptr_t ret = 0;
+  struct enclave_t *enclave = NULL;
+  struct enclave_t *attest_enclave = NULL;
+  int eid = 0, attest_eid = 0; 
+  attest_eid = acquire_server_enclave(name);
+  if (attest_eid == -1UL)
+  {
+    sbi_bug("M mode: get_server_enclave_attest_report: server enclave is not existed\n");
+    return -1UL;
+  }
+  attest_enclave = __get_enclave(attest_eid);
+
+  if(check_in_enclave_world() < 0)
+  {
+    sbi_bug("M mode: get_enclave_attest_report: CPU is not in the enclave mode\n");
+    return -1UL;
+  }
+
+  acquire_enclave_metadata_lock();
+
+  eid = get_curr_enclave_id();
+  enclave = __get_enclave(eid);
+  if(!enclave || enclave->state != RUNNING)
+  {
+    ret = -1UL;
+    sbi_bug("M mode: get_enclave_attest_report: enclave%d can not be accessed!\n", eid);
+    goto out;
+  }
+
+  // Get the physical address of the attestaion report
+  struct report_t m_report;
+  struct report_t* u_report = va_to_pa((uintptr_t*)(enclave->root_page_table), (void*)report);
+  if(!u_report)
+  {
+    sbi_bug("M mode: get_enclave_attest_report: report is not existed \n");
+    ret = -1UL;
+    goto out;
+  }
+  
+  sbi_memcpy((void*)(m_report.dev_pub_key), (void*)DEV_PUB_KEY, PUBLIC_KEY_SIZE);
+  sbi_memcpy((void*)(m_report.sm.hash), (void*)SM_HASH, HASH_SIZE);
+  sbi_memcpy((void*)(m_report.sm.sm_pub_key), (void*)SM_PUB_KEY, PUBLIC_KEY_SIZE);
+  sbi_memcpy((void*)(m_report.sm.signature), (void*)SM_SIGNATURE, SIGNATURE_SIZE);
+
+  update_enclave_hash((char*)(m_report.enclave.hash), (void*)(attest_enclave->hash), nonce);
+  sign_enclave((void*)(m_report.enclave.signature), (void*)(m_report.enclave.hash));
+  m_report.enclave.nonce = nonce;
+
+  // Copy attestation report to enclave
+  copy_to_host(u_report, &m_report, sizeof(struct report_t));
+out:
+  release_enclave_metadata_lock();
+  return ret;
+}
+
+/* Retrive the eid of the caller enclave  */
+/**
+ * \brief Get the caller enclave id.
  */
 uintptr_t get_caller_id(uintptr_t* regs)
 {
@@ -458,7 +525,7 @@ uintptr_t get_caller_id(uintptr_t* regs)
     goto failed;
   }
 
-  ret = enclave->caller_eid;;
+  ret = enclave->caller_eid;
 
   release_enclave_metadata_lock();
   return ret;
