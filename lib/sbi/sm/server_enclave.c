@@ -360,6 +360,7 @@ uintptr_t destroy_server_enclave(uintptr_t* regs, unsigned int eid)
     retval = -1UL;
     goto out;
   }
+
   sbi_memset((void*)server_enclave, 0, sizeof(struct server_enclave_t));
 
   if(enclave->state != RUNNING)

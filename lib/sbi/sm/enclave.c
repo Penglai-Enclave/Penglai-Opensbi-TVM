@@ -2025,12 +2025,14 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
       {
         top_caller_id = enclave->top_caller_eid;
         top_caller_enclave = __get_enclave(top_caller_id);
+        // Return the runncing context to the top caller enclave
         __enclave_return(regs, enclave, top_caller_enclave, top_caller_enclave);
         enclave->state = RUNNABLE;
         top_caller_enclave->state = RUNNING;
         eid = top_caller_id;
       }
       release_enclave_metadata_lock();
+      // Destroy the top caller enclave
       ipi_destroy_enclave(regs, satp, eid);
     }
     else
