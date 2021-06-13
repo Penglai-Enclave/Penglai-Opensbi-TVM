@@ -78,7 +78,7 @@ static int sbi_ecall_penglai_handler(unsigned long extid, unsigned long funcid,
     case 84:
       retval = sm_print(arg0, arg1);
       break;
-	
+
 	default:
 		retval = SBI_ENOTSUPP;
 	}
@@ -88,7 +88,7 @@ static int sbi_ecall_penglai_handler(unsigned long extid, unsigned long funcid,
 	return retval;
 }
 
-struct sbi_ecall_extension ecall_pengali = {
+struct sbi_ecall_extension ecall_penglai = {
 	.extid_start = SBI_EXT_PENGLAI_HOST,
 	.extid_end = SBI_EXT_PENGLAI_HOST,
 	.handle = sbi_ecall_penglai_handler,

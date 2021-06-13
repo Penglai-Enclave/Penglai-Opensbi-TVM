@@ -33,7 +33,7 @@ spinlock_t cpu_in_critical_lock = SPINLOCK_INIT;
 #define CPU_ENABLE_NOTIFICATION(hartid) CPU_IN_CRITICAL|(hartid)
 
 #define SET_FLUSH_TAG(hartid) CPU_FLUSH_TAG|(hartid)
-#define REMOVE_FLUSH_TAG(hartid) CPU_FLUSH_TAG&(~(1<<hartid)) 
+#define REMOVE_FLUSH_TAG(hartid) CPU_FLUSH_TAG&(~(1<<hartid))
 
 u16 sbi_ecall_version_major(void)
 {
@@ -118,7 +118,7 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 {
 	unsigned long retval = 0;
 
-	if(check_in_enclave_world() < 0) 
+	if(check_in_enclave_world() < 0)
 	{
 		retval = SBI_ERR_FAILED;
 		regs->mepc += 4;
@@ -140,7 +140,7 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 		destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
 		regs->mepc = csr_read(CSR_MEPC);
 		regs->mstatus = csr_read(CSR_MSTATUS);
-		regs->a0 = -1; 
+		regs->a0 = -1;
 		sbi_bug("M mode: enclave_call_trap: illegal user ecall\n");
 		return 0;
 	}
@@ -195,7 +195,7 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 				destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
 				regs->mepc = csr_read(CSR_MEPC);
 				regs->mstatus = csr_read(CSR_MSTATUS);
-				regs->a0 = -1; 
+				regs->a0 = -1;
 				return 0;
 			}
 			break;
@@ -203,14 +203,14 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 
 	spin_lock(&cpu_in_critical_lock);
 	CPU_IN_CRITICAL = CPU_ENABLE_NOTIFICATION(current_hartid());
-	if (((CPU_FLUSH_TAG & (1<<current_hartid())) == 1) 
+	if (((CPU_FLUSH_TAG & (1<<current_hartid())) == 1)
 		&& (CPU_NEED_FLUSH[1<<current_hartid()] == 1))
 	{
 		__asm__ __volatile__ ("sfence.vma" : : : "memory");
 		CPU_FLUSH_TAG = REMOVE_FLUSH_TAG(current_hartid());
 	}
 	spin_unlock(&cpu_in_critical_lock);
-		
+
 	regs->a0 = retval;
 	if (!cpu_in_enclave(csr_read(CSR_MHARTID)))
 	{
@@ -265,7 +265,7 @@ int sbi_ecall_handler(struct sbi_trap_regs *regs)
 					(unsigned long *)regs, &out_val, &trap);
 		spin_lock(&cpu_in_critical_lock);
 		CPU_IN_CRITICAL = CPU_ENABLE_NOTIFICATION(current_hartid());
-		if (((CPU_FLUSH_TAG & (1<<current_hartid())) == 1) 
+		if (((CPU_FLUSH_TAG & (1<<current_hartid())) == 1)
 		&& (CPU_NEED_FLUSH[1<<current_hartid()] == 1))
 		{
 			__asm__ __volatile__ ("sfence.vma" : : : "memory");
@@ -273,7 +273,7 @@ int sbi_ecall_handler(struct sbi_trap_regs *regs)
 		}
 		spin_unlock(&cpu_in_critical_lock);
 	}
-	
+
 
 	if ((ret == SBI_ETRAP) && (extension_id != SBI_EXT_PENGLAI_HOST)) {
 		trap.epc = regs->mepc;
@@ -344,7 +344,7 @@ int sbi_ecall_init(void)
 	ret = sbi_ecall_register_extension(&ecall_vendor);
 	if (ret)
 		return ret;
-	ret = sbi_ecall_register_extension(&ecall_pengali);
+	ret = sbi_ecall_register_extension(&ecall_penglai);
 	if (ret)
 		return ret;
 
