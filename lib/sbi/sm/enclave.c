@@ -526,6 +526,41 @@ static struct shadow_enclave_t* __get_shadow_enclave(int eid)
   return shadow_enclave;
 }
 
+/** 
+ * \brief Free the shadow enclave with the given eid in the shadow enclave list.
+ * 
+ * \param eid shadow enclave id, which represents the location in the list.
+ */
+int __free_shadow_enclave(int eid)
+{
+  struct link_mem_t *cur;
+  struct shadow_enclave_t *shadow_enclave = NULL;
+  int found=0 , count=0, ret_val=0;
+
+  for(cur = shadow_enclave_metadata_head; cur != NULL; cur = cur->next_link_mem)
+  {
+    if(eid < (count + cur->slab_num))
+    {
+      shadow_enclave = (struct shadow_enclave_t*)(cur->addr) + (eid - count);
+      sbi_memset((void*)shadow_enclave, 0, sizeof(struct shadow_enclave_t));
+      shadow_enclave->state = INVALID;
+      found = 1;
+      ret_val = 0;
+      break;
+    }
+    count += cur->slab_num;
+  }
+
+  //haven't alloc this eid 
+  if(!found)
+  {
+    sbi_bug("M mode: __free_shadow_enclave_enclave: haven't alloc this eid\n");
+    ret_val = -1;
+  }
+
+  return ret_val;
+}
+
 /**
  * \brief this function is used to handle IPC in enclave,
  * 	  it will return the last enclave in the chain.
@@ -1288,7 +1323,9 @@ uintptr_t create_shadow_enclave(enclave_create_param_t create_args)
   //first page is reserve for page link
   shadow_enclave->root_page_table = create_args.paddr + RISCV_PGSIZE;
   shadow_enclave->thread_context.encl_ptbr = ((create_args.paddr+RISCV_PGSIZE) >> RISCV_PGSHIFT) | SATP_MODE_CHOICE;
-  
+  shadow_enclave->paddr = create_args.paddr;
+  shadow_enclave->size = create_args.size;
+
   hash_shadow_enclave(shadow_enclave, (void*)(shadow_enclave->hash), 0);
   copy_word_to_host((unsigned int*)create_args.eid_ptr, shadow_enclave->eid);
   
@@ -1302,6 +1339,38 @@ failed:
     free_secure_memory(create_args.paddr, create_args.size);
   }
   return ret;
+}
+
+/**
+ * \brief Host calls this function to destroy the template of shadow enclave.
+ * 
+ * \param regs The host register context.
+ * \param eid Destroyed enclave id.
+ */
+uintptr_t destroy_shadow_enclave(uintptr_t* regs, unsigned int eid)
+{
+  uintptr_t retval = 0;
+  struct shadow_enclave_t* shadow_enclave;
+  acquire_enclave_metadata_lock();
+
+  shadow_enclave = __get_shadow_enclave(eid);
+
+  if(!shadow_enclave)
+  {
+    sbi_bug("M mode: destroy_shadow_enclave: shadow_enclave%d can not be accessed\n", eid);
+    retval = -1UL;
+    goto destroy_enclave_out;
+  }
+
+  // Free the secure memory size
+  free_secure_memory(shadow_enclave->paddr, shadow_enclave->size);
+  // Free the shadow enclave metadata
+  __free_shadow_enclave(eid);
+
+destroy_enclave_out:
+  release_enclave_metadata_lock();
+
+  return retval;
 }
 
 uintptr_t map_relay_page(unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_arg_size, uintptr_t* mmap_offset, struct enclave_t* enclave, struct relay_page_entry_t* relay_page_entry)

@@ -69,6 +69,9 @@ static int sbi_ecall_penglai_handler(unsigned long extid, unsigned long funcid,
     case SBI_ATTEST_SHADOW_ENCLAVE:
       retval = sm_attest_shadow_enclave(arg0, arg1, arg2);
       break;
+    case SBI_DESTROY_SHADOW_ENCLAVE:
+      retval = sm_destroy_shadow_enclave(args, arg0);
+      break;
     case SBI_DESTROY_SERVER_ENCLAVE:
       retval = sm_destroy_server_enclave(args, arg0);
       break;

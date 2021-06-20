@@ -24,6 +24,7 @@
 #define SBI_MEMORY_RECLAIM      91
 #define SBI_CREATE_SERVER_ENCLAVE         90
 #define SBI_DESTROY_SERVER_ENCLAVE        89
+#define SBI_DESTROY_SHADOW_ENCLAVE        79
 
 #define SBI_SM_DEBUG_PRINT               88
 #define SBI_RUN_SHADOW_ENCLAVE           87
@@ -130,7 +131,7 @@ uintptr_t sm_destroy_server_enclave(uintptr_t *regs, uintptr_t enclave_id);
 uintptr_t sm_create_shadow_enclave(uintptr_t enclave_create_args);
 uintptr_t sm_run_shadow_enclave(uintptr_t *regs, uintptr_t enclave_id, uintptr_t shadow_enclave_run_args);
 uintptr_t sm_attest_shadow_enclave(uintptr_t enclave_id, uintptr_t report, uintptr_t nonce);
-
+uintptr_t sm_destroy_shadow_enclave(uintptr_t *regs, uintptr_t enclave_id);
 
 // Called by enclave
 uintptr_t sm_enclave_ocall(uintptr_t *regs, uintptr_t ocall_func_id, uintptr_t arg0, uintptr_t arg1);
