@@ -1637,6 +1637,9 @@ uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_r
       goto run_enclave_out;
   }
 
+  // Copy the enclave measurement from the shadow enclave
+  sbi_memcpy(enclave->hash, (char *)shadow_enclave->hash, HASH_SIZE);
+
   // __list_relay_page_by_name();
   if(swap_from_host_to_enclave(regs, enclave) < 0)
   {
