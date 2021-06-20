@@ -189,7 +189,7 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 
 		default:
 			retval = SBI_ERR_FAILED;
-			sbi_bug("M mode: enclave_call_trap: unsupported ecall%lx from enclave\n", n);
+			sbi_bug("M mode: enclave_call_trap: unsupported ecall number %lx from enclave\n", n);
 			if(check_in_enclave_world() == 0)
 			{
 				destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
