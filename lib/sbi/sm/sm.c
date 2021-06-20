@@ -727,7 +727,7 @@ uintptr_t sm_pt_area_separation(uintptr_t tmp_pgd_order, uintptr_t tmp_pmd_order
 }
 
 /**
- * \brief This transitional function for create the enclave.
+ * \brief This transitional function is used to create the enclave.
  * 
  * \param enclave_sbi_param The enclave create arguments.
  */
@@ -751,7 +751,7 @@ uintptr_t sm_create_enclave(uintptr_t enclave_sbi_param)
 }
 
 /**
- * \brief This transitional function for attest the enclave.
+ * \brief This transitional function is used to attest the enclave.
  * 
  * \param eid The enclave id.
  * \param report The enclave measurement report.
@@ -767,10 +767,10 @@ uintptr_t sm_attest_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce)
 }
 
 /**
- * \brief This transitional function for attest the shadow enclave.
+ * \brief This transitional function is used to run an enclave.
  * 
- * \param eid The shadow enclave id.
- * \param report The shadow enclave measurement report.
+ * \param eid The enclave id.
+ * \param report The enclave measurement report.
  * \param nouce The attestation nonce.
  */
 uintptr_t sm_run_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t enclave_run_args)
@@ -794,7 +794,7 @@ uintptr_t sm_run_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t enclave_run_a
 }
 
 /**
- * \brief This transitional function for stop the enclave.
+ * \brief This transitional function is used to stop the enclave.
  * 
  * \param regs The host reg.
  * \param eid The enclave id.
@@ -810,7 +810,7 @@ uintptr_t sm_stop_enclave(uintptr_t* regs, uintptr_t eid)
 }
 
 /**
- * \brief This transitional function for resume the enclave.
+ * \brief This transitional function is used to resume the enclave.
  * 
  * \param regs The host reg.
  * \param eid The enclave id.
@@ -837,7 +837,7 @@ uintptr_t sm_resume_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t resume_fun
 }
 
 /**
- * \brief This transitional function for destroy the enclave.
+ * \brief This transitional function is used to destroy the enclave.
  * 
  * \param regs The host reg.
  * \param enclave_eid The enclave id.
@@ -856,7 +856,7 @@ uintptr_t sm_destroy_enclave(uintptr_t *regs, uintptr_t enclave_id)
 /*                   Interfaces for shadow enclave           */
 /**************************************************************/
 /**
- * \brief This transitional function for attest the shadow enclave.
+ * \brief This transitional function is used to attest the shadow enclave.
  * 
  * \param eid The shadow enclave id.
  * \param report The shadow enclave measurement report.
@@ -872,7 +872,7 @@ uintptr_t sm_attest_shadow_enclave(uintptr_t eid, uintptr_t report, uintptr_t no
 }
 
 /**
- * \brief This transitional function creates the shadow enclave.
+ * \brief This transitional function is used to create the shadow enclave.
  * 
  * \param enclave_sbi_param The arguments for creating the shadow enclave.
  */
@@ -895,7 +895,7 @@ uintptr_t sm_create_shadow_enclave(uintptr_t enclave_sbi_param)
 }
 
 /**
- * \brief This transitional function for run the shadow enclave.
+ * \brief This transitional function is used to run the shadow enclave.
  * 
  * \param regs The host reg.
  * \param eid The shadow enclave id.
@@ -926,11 +926,26 @@ uintptr_t sm_run_shadow_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t shadow
   return retval;
 }
 
+/**
+ * \brief This transitional function is used to destroy the shadow enclave.
+ * 
+ * \param enclave_sbi_param The arguments for destroying the shadow enclave.
+ */
+uintptr_t sm_destroy_shadow_enclave(uintptr_t *regs, uintptr_t enclave_id)
+{
+  //TODO
+  uintptr_t ret = 0;
+
+  ret = destroy_shadow_enclave(regs, enclave_id);
+
+  return ret;
+}
+
 /**************************************************************/
 /*                   called by enclave                        */
 /**************************************************************/
 /**
- * \brief This transitional function exits the enclave mode.
+ * \brief This transitional function is used to exit the enclave mode.
  * 
  * \param regs The enclave reg.
  * \param retval The enclave return value.
@@ -1026,7 +1041,7 @@ uintptr_t sm_handle_yield(uintptr_t *regs)
 /*                   Interfaces for server enclave           */
 /**************************************************************/
 /**
- * \brief This transitional function creates the server enclave.
+ * \brief This transitional function is used to create the server enclave.
  * 
  * \param regs The enclave reg.
  * \param mcause CSR mcause value.
@@ -1051,9 +1066,9 @@ uintptr_t sm_create_server_enclave(uintptr_t enclave_sbi_param)
 }
 
 /**
- * \brief This transitional function destroys the server enclave.
+ * \brief This transitional function is used to destroy the server enclave.
  * 
- * \param enclave_sbi_param The arguments for creating the shadow enclave.
+ * \param enclave_sbi_param The arguments for creating the server enclave.
  */
 uintptr_t sm_destroy_server_enclave(uintptr_t *regs, uintptr_t enclave_id)
 {

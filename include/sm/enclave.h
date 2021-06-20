@@ -149,8 +149,8 @@ struct shadow_enclave_t
   unsigned int eid;
 
   enclave_state_t state;
-  struct page_t* free_pages;
-  uintptr_t free_pages_num;
+  unsigned long paddr;
+  unsigned long size;
 
   //root page table of enclave
   unsigned long root_page_table;
@@ -207,6 +207,7 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid);
 // Shadow encalve related operations
 uintptr_t create_shadow_enclave(enclave_create_param_t create_args);
 uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce);
+uintptr_t destroy_shadow_enclave(uintptr_t* regs, unsigned int eid);
 uintptr_t run_shadow_enclave(uintptr_t* regs, unsigned int eid, shadow_enclave_run_param_t enclave_run_param);
 
 // Resume enclave
