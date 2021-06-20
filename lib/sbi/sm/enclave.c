@@ -1993,6 +1993,7 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
     goto destroy_enclave_out;
   }
 
+  // Enclave is not running, just reclaim the enclave resource and free its metadata
   if(enclave->state != RUNNING)
   {
     if (enclave->type == SERVER_ENCLAVE)
@@ -2010,6 +2011,7 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
       release_enclave_metadata_lock();
     }
   }
+  // Enclave is running, reclaim the enclave resource and swap CPU state to the normal mode.
   else
   {
     //cpus' state will be protected by enclave_metadata_lock
@@ -2018,6 +2020,7 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
       if(cpus[i].in_enclave && cpus[i].eid == eid)
         dest_hart = i;
     }
+    // If enclave is running in the current hart
     if (dest_hart == csr_read(CSR_MHARTID))
     {
       NEED_DESTORY_ENCLAVE[dest_hart] = 1;
@@ -2032,7 +2035,7 @@ uintptr_t destroy_enclave(uintptr_t* regs, unsigned int eid)
         eid = top_caller_id;
       }
       release_enclave_metadata_lock();
-      // Destroy the top caller enclave
+      // Destroy the top caller / current enclave
       ipi_destroy_enclave(regs, satp, eid);
     }
     else

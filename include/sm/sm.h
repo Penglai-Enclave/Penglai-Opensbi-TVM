@@ -54,17 +54,17 @@
 
 #define SBI_LEGAL_MAX            100UL
 //ENCLAVE_CALL NUMBERS
-#define SBI_EXIT_ENCLAVE         1
-#define SBI_ENCLAVE_OCALL        2
-#define SBI_ACQUIRE_SERVER       3
-#define SBI_CALL_ENCLAVE         4
-#define SBI_ENCLAVE_RETURN       5
-#define SBI_ASYN_ENCLAVE_CALL    6
-#define SBI_SPLIT_MEM_REGION     7
-#define SBI_GET_CALLER_ID        8
-#define SBI_GET_ENCLAVE_ID       9
-#define SBI_YIELD                10
-#define SBI_GET_REPORT           11   
+#define SBI_EXIT_ENCLAVE         99
+#define SBI_ENCLAVE_OCALL        98
+#define SBI_ACQUIRE_SERVER       97
+#define SBI_CALL_ENCLAVE         96
+#define SBI_ENCLAVE_RETURN       95
+#define SBI_ASYN_ENCLAVE_CALL    93
+#define SBI_SPLIT_MEM_REGION     92
+#define SBI_GET_CALLER_ID        91
+#define SBI_GET_ENCLAVE_ID       90
+#define SBI_YIELD                89
+#define SBI_GET_REPORT           94 
 
 //ENCLAVE OCALL NUMBERS
 #define OCALL_MMAP                   1
