@@ -323,7 +323,7 @@ uintptr_t sm_print(uintptr_t paddr, uintptr_t size)
 }
 
 /**
- * \brief split the pte (a huge page, 2M) into new_pte_addr (4K PT page)
+ * \brief split the pmd entry (a huge page, 2M) into several pte entries (4K PT page)
  * 
  * \param pmd The given huge pmd entry.
  * \param new_pte_addr The new pte page address.
@@ -342,7 +342,7 @@ uintptr_t sm_map_pte(uintptr_t* pmd, uintptr_t* new_pte_addr)
 
 /**
  * \brief Unmap a memory region, [paddr, paddr + size], from host's all PTEs
- * We can achieve a fast path unmapping if the unmapped pages are SCHRODINGER PAGEs.
+ * (remove) We can achieve a fast path unmapping if the unmapped pages are SCHRODINGER PAGEs.
  * 
  * \param paddr The unmap memory address.
  * \param size The unmap memory size.
@@ -357,7 +357,6 @@ int unmap_mm_region(unsigned long paddr, unsigned long size)
     return -1;
   }
 
-  //slow path
   uintptr_t pfn_base = PADDR_TO_PFN(paddr);
   uintptr_t pfn_end = PADDR_TO_PFN(paddr + size);
   uintptr_t *pte = (uintptr_t*)(pt_area_pmd_base);
@@ -471,7 +470,7 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
 // static spinlock_t enclave_sm_lock = SPINLOCK_INIT;
 
 /**
- * \brief Set a single pte entry. It will be triggled by the untrusted OS when setting the new pte entry value.
+ * \brief Set a single pte entry. It will be triggled by the untrusted OS when setting new pte entry value.
  * 
  * \param pte_dest The location of pt entry in pt area
  * \param pte_src The content of pt entry
@@ -484,8 +483,8 @@ inline int set_single_pte(uintptr_t *pte_dest, uintptr_t pte_src)
 }
 
 /**
- * \brief Check whether the page table entry located in the legitimate location.
- * This check can be done in the hardware.
+ * \brief Check whether the page table entry located in the legitimate location (pt_area).
+ * This check can be done in the hardware (extend in MMU).
  * 
  * \param pte_addr The address of the pte entry.
  * \param pte_src The value of the pte entry.
@@ -524,7 +523,7 @@ inline int check_pt_location(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src
  * \param pte_addr The address of the pte entry.
  * \param pte_src The value of the pte entry.
  * \param pa The physical address contained in the pte entry.
- * \param page_num Return value. Huge page entry: 512, otherwise: 1
+ * \param page_num Return value. Huge page entry: 512, otherwise: not change.
  */
 inline int check_huge_pt(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src, int *page_num)
 {
@@ -539,7 +538,8 @@ inline int check_huge_pt(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src, in
 }
 
 /**
- * \brief Set a pte entry. It will be triggled by the untrusted OS when setting the pte entry (set, copy, clear).
+ * \brief Set pte entry. It will be triggered by the untrusted OS when writing pte entry (set, copy, clear, etc).
+ * Before setting the pte entry, check whether the mapped page is non secure (in the public range).
  * 
  * \param pte_addr The location of pt entry in pt area.
  * \param pte_src The content of pt entry.
@@ -566,6 +566,7 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
         {
           ret = -1;
           sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: check_pt_location is failed \r\n");
+          goto free_mbitmap_lock;
           break;
         }
         if(test_public_range(pfn, pte_num) < 0)
@@ -576,7 +577,6 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
         }
       }
       set_single_pte(pte_addr, pte_src);
-      //*pte_addr = pte_src;
       break;
     case SBI_PTE_MEMSET:
       if((!IS_PGD(pte_src)) && PTE_VALID(pte_src))
@@ -588,7 +588,7 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
           goto free_mbitmap_lock;
         }
       }
-      //memset(pte_addr, pte_src, size);
+      //sbi_memset(pte_addr, pte_src, size);
       uintptr_t i1 = 0;
       for(i1 = 0; i1 < size/sizeof(uintptr_t); ++i1, ++pte_addr)
       {
@@ -706,7 +706,7 @@ uintptr_t sm_sm_init(uintptr_t _pt_area_base, uintptr_t _pt_area_size, uintptr_t
 }
 
 /**
- * \brief This function sets the pgd and pmd orders in PT Area, and enable the TVM trap.
+ * \brief This function sets the order of the pgd and pmd sub-area, and enable the TVM trap.
  * 
  * \param tmp_pgd_order The order of the pgd area page 
  * \param tmp_pmd_order The prder of the pt_area page.
@@ -796,7 +796,7 @@ uintptr_t sm_run_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t enclave_run_a
 /**
  * \brief This transitional function is used to stop the enclave.
  * 
- * \param regs The host reg.
+ * \param regs The host regs.
  * \param eid The enclave id.
  */
 uintptr_t sm_stop_enclave(uintptr_t* regs, uintptr_t eid)
@@ -812,7 +812,7 @@ uintptr_t sm_stop_enclave(uintptr_t* regs, uintptr_t eid)
 /**
  * \brief This transitional function is used to resume the enclave.
  * 
- * \param regs The host reg.
+ * \param regs The host regs.
  * \param eid The enclave id.
  */
 uintptr_t sm_resume_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t resume_func_id)
@@ -839,7 +839,7 @@ uintptr_t sm_resume_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t resume_fun
 /**
  * \brief This transitional function is used to destroy the enclave.
  * 
- * \param regs The host reg.
+ * \param regs The host regs.
  * \param enclave_eid The enclave id.
  */
 uintptr_t sm_destroy_enclave(uintptr_t *regs, uintptr_t enclave_id)
@@ -897,7 +897,7 @@ uintptr_t sm_create_shadow_enclave(uintptr_t enclave_sbi_param)
 /**
  * \brief This transitional function is used to run the shadow enclave.
  * 
- * \param regs The host reg.
+ * \param regs The host regs.
  * \param eid The shadow enclave id.
  * \param shadow_enclave_run_args The arguments for running the shadow enclave.
  * \param mm_arg_addr The relay page address.
@@ -947,7 +947,7 @@ uintptr_t sm_destroy_shadow_enclave(uintptr_t *regs, uintptr_t enclave_id)
 /**
  * \brief This transitional function is used to exit the enclave mode.
  * 
- * \param regs The enclave reg.
+ * \param regs The enclave regs.
  * \param retval The enclave return value.
  */
 uintptr_t sm_exit_enclave(uintptr_t* regs, uintptr_t retval)
@@ -960,7 +960,7 @@ uintptr_t sm_exit_enclave(uintptr_t* regs, uintptr_t retval)
 }
 
 /**
- * \brief This transitional function is for enclave ocall procedure.
+ * \brief This transitional function is used to handle the enclave ocall function.
  * 
  * \param regs The enclave reg.
  * \param ocall_id The ocall function id.
@@ -1002,9 +1002,9 @@ uintptr_t sm_enclave_ocall(uintptr_t* regs, uintptr_t ocall_id, uintptr_t arg0, 
 }
 
 /**
- * \brief This transitional function is for handling the time irq triggered in the enclave.
+ * \brief This transitional function is used to handle the time irq triggered in the enclave.
  * 
- * \param regs The enclave reg.
+ * \param regs The enclave regs.
  * \param mcause CSR mcause value.
  * \param mepc CSR mepc value.
  */
@@ -1022,7 +1022,7 @@ uintptr_t sm_do_timer_irq(uintptr_t *regs, uintptr_t mcause, uintptr_t mepc)
 }
 
 /**
- * \brief This transitional function is for handling yield() triggered in the enclave.
+ * \brief (remove) This transitional function is used to handle the yield() triggered in the enclave.
  * 
  * \param regs The enclave reg.
  * \param mcause CSR mcause value.
@@ -1043,7 +1043,7 @@ uintptr_t sm_handle_yield(uintptr_t *regs)
 /**
  * \brief This transitional function is used to create the server enclave.
  * 
- * \param regs The enclave reg.
+ * \param regs The enclave regs.
  * \param mcause CSR mcause value.
  * \param mepc CSR mepc value.
  */
@@ -1081,7 +1081,7 @@ uintptr_t sm_destroy_server_enclave(uintptr_t *regs, uintptr_t enclave_id)
 }
 
 /**
- * \brief This transitional function acquires the server enclave handler.
+ * \brief This transitional function acquires the handler of server enclave.
  * 
  * \param regs The enclave regs.
  * \param server_name The acquired server enclave name.
@@ -1098,9 +1098,9 @@ uintptr_t sm_server_enclave_acquire(uintptr_t *regs, uintptr_t server_name)
 /**
  * \brief Get the enclave attestation report.
  * 
- * \param regs   The enclave reg.
+ * \param regs   The enclave regs.
  * \param name   Enclave name, NULL for current enclave.
- * \param report Attestatio n.
+ * \param report The structure of the attestatio report.
  */
 uintptr_t sm_get_report(uintptr_t *regs, char* name, uintptr_t *report, uintptr_t nonce)
 {
@@ -1115,7 +1115,7 @@ uintptr_t sm_get_report(uintptr_t *regs, char* name, uintptr_t *report, uintptr_
 }
 
 /**
- * \brief This transitional function gets the caller enclave id.
+ * \brief This transitional function gets the caller enclave id (used in the PSA).
  * 
  * \param regs The enclave regs.
  */
@@ -1129,7 +1129,7 @@ uintptr_t sm_get_caller_id(uintptr_t *regs)
 }
 
 /**
- * \brief This transitional function gets the enclave id.
+ * \brief This transitional function gets the current enclave id.
  * 
  * \param regs The enclave regs.
  */
@@ -1143,7 +1143,7 @@ uintptr_t sm_get_enclave_id(uintptr_t *regs)
 }
 
 /**
- * \brief This transitional function call the server enclave.
+ * \brief This transitional function is used to call the server enclave.
  * 
  * \param regs The enclave regs.
  * \param eid The callee enclave id.
@@ -1159,7 +1159,7 @@ uintptr_t sm_call_enclave(uintptr_t* regs, uintptr_t eid, uintptr_t arg)
 }
 
 /**
- * \brief This transitional function is for server enclave return .
+ * \brief This transitional function is used for server enclave return .
  * 
  * \param regs The enclave regs.
  * \param arg The return arguments.
@@ -1174,7 +1174,7 @@ uintptr_t sm_enclave_return(uintptr_t* regs, uintptr_t arg)
 }
 
 /**
- * \brief This transitional function is for the asynchronous call to the server enclave.
+ * \brief This transitional function is used to invoke an asynchronous enclave call to the server enclave.
  * 
  * \param regs The enclave regs.
  * \param enclave_name The callee enclave name.
@@ -1189,12 +1189,12 @@ uintptr_t sm_asyn_enclave_call(uintptr_t *regs, uintptr_t enclave_name, uintptr_
 }
 
 /**
- * \brief This transitional function splits the enclave memory into two pieces.
+ * \brief This transitional function splits the relay page memory into two regions.
  * 
  * \param regs The enclave regs.
- * \param mem_addr The splitted memory address.
- * \param mem_size The splitted memory size.
- * \param split_addr The split point in the memory range.
+ * \param mem_addr The relay page physical address
+ * \param mem_size The size of relay pages.
+ * \param split_addr The splitted point in the relay pages.
  */
 uintptr_t sm_split_mem_region(uintptr_t *regs, uintptr_t mem_addr, uintptr_t mem_size, uintptr_t split_addr)
 {

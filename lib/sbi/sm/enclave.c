@@ -171,8 +171,8 @@ static void switch_to_host_ptbr(struct thread_state_t* thread, uintptr_t ptbr)
 }
 
 /**
- * \brief it creates a new link_mem_t list, with the total size (mem_size), each 
- * 	entry is slab_size.
+ * \brief It creates a new link memory range with the given memory size. Each 
+ * 	entry is slab_size large.
  * 
  * \param mem_size Init link memory size.
  * \param slab_size The slab size for the link memmory 
@@ -206,7 +206,7 @@ struct link_mem_t* init_mem_link(unsigned long mem_size, unsigned long slab_size
 }
 
 /**
- * \brief Create a new link_mem_t entry and append it into tail.
+ * \brief Create a new link memory range and append it into tail of the corresponding link memory list.
  * 
  * \param tail Return value, The tail of the link memory.
  */
@@ -241,7 +241,7 @@ struct link_mem_t* add_link_mem(struct link_mem_t** tail)
 }
 
 /**
- * \brief Remove the entry (indicated by ptr) in the head's list.
+ * \brief Remove the entry (indicated by ptr) from the head's list.
  * \param head Head of the link memory.
  * \param pte The removed link memory ptr.
  */
@@ -274,7 +274,7 @@ int remove_link_mem(struct link_mem_t** head, struct link_mem_t* ptr)
 
 /** 
  * \brief alloc an enclave_t structure from encalve_metadata_head.
- * Eid represents the location in the list.
+ * Eid represents the location in the enclave metadata list.
  */
 struct enclave_t* __alloc_enclave()
 {
@@ -335,9 +335,9 @@ alloc_eid_out:
 }
  
 /** 
- * \brief Free the enclave with the given eid in the enclave list.
+ * \brief Free the enclave metadata with the given eid.
  * 
- * \param eid enclave id, and represents the location in the list.
+ * \param eid enclave id, which indicates the location in enclave metadata list.
  */
 int __free_enclave(int eid)
 {
@@ -370,9 +370,9 @@ int __free_enclave(int eid)
 }
 
 /** 
- * \brief Get the enclave with the given eid.
+ * \brief Get the enclave metadata with the given eid.
  * 
- * \param eid enclave id, and represents the location in the list.
+ * \param eid enclave id, which indicates the location in enclave metadata list.
  */
 struct enclave_t* __get_enclave(int eid)
 {
@@ -433,7 +433,7 @@ int check_enclave_name(char *enclave_name, int target_eid)
 }
 
 /** 
- * \brief Alloc shadow enclave (seid) in the shadow enclave list.
+ * \brief Alloc shadow enclave metadata in the shadow enclave list.
  */
 static struct shadow_enclave_t* __alloc_shadow_enclave()
 {
@@ -494,7 +494,7 @@ alloc_eid_out:
 }
 
 /** 
- * \brief Get the shadow enclave structure with the given eid.
+ * \brief Get the shadow enclave metadata with the given shadow eid.
  * 
  * \param eid the shadow enclave id.
  */
@@ -529,7 +529,7 @@ static struct shadow_enclave_t* __get_shadow_enclave(int eid)
 /** 
  * \brief Free the shadow enclave with the given eid in the shadow enclave list.
  * 
- * \param eid shadow enclave id, which represents the location in the list.
+ * \param eid shadow enclave id, which represents the location in the shadow enclave list.
  */
 int __free_shadow_enclave(int eid)
 {
@@ -562,7 +562,7 @@ int __free_shadow_enclave(int eid)
 }
 
 /**
- * \brief this function is used to handle IPC in enclave,
+ * \brief This function is used to handle IPC in enclave,
  * 	  it will return the last enclave in the chain.
  * 	  This is used to help us identify the real executing encalve.
  * 
@@ -690,7 +690,7 @@ failed:
 
 /**
  * \brief Free the relay page indexed by the the given enclave name.
- * now we just set the address in the relay page netry to zero
+ * now we just set the address in the relay page entry to zero
  * which means this relay page entry is not used.
  * 
  * return value:
@@ -735,11 +735,11 @@ int __free_relay_page_entry(unsigned long relay_page_addr, unsigned long relay_p
 }
 
 /**
- * \brief Retrieve the relay page entry by given the enclave name.
+ * \brief Retrieve the relay page entry with the given enclave name.
  * 
  * \param enclave_name: Get the relay page entry with given enclave name.
  * \param slab_index: Find the corresponding relay page entry and return the slab index in the link memory.
- * \param link_mem_index: Find the corresponding relay page entry and return the link mem index in the link memory.
+ * \param link_mem_index: Find the corresponding relay page entry and return the link mem index.
  */
 struct relay_page_entry_t* __get_relay_page_by_name(char* enclave_name, int *slab_index, int *link_mem_index)
 {
@@ -1093,8 +1093,8 @@ static int __enclave_return(uintptr_t* regs, struct enclave_t* callee_enclave, s
 }
 
 /**
- * \brief free a list of memory indicated by pm_area_struct.
- * 	  the pages are zero-ed and turned back to host.
+ * \brief free a list of memory (pma) indicated by pm_area_struct.
+ * 	  the pages are zero-filled and turned back to host.
  * 
  * \param pma The pma structure of the free memory. 
  */
@@ -1342,10 +1342,10 @@ failed:
 }
 
 /**
- * \brief Host calls this function to destroy the template of shadow enclave.
+ * \brief Host calls this function to destroy the shadow enclave.
  * 
  * \param regs The host register context.
- * \param eid Destroyed enclave id.
+ * \param eid Destroyed shadow enclave id.
  */
 uintptr_t destroy_shadow_enclave(uintptr_t* regs, unsigned int eid)
 {
@@ -1444,9 +1444,9 @@ uintptr_t map_relay_page(unsigned int eid, uintptr_t mm_arg_addr, uintptr_t mm_a
 }
 
 /**
- * \brief Run enclave with the given eid.
+ * \brief Run the enclave with the given eid and running parameters.
  * 
- * \param regs The host reg need to saved.
+ * \param regs The host reg need to save.
  * \param eid The given enclave id.
  * \param mm_arg_addr The relay page address for this enclave, map before enclave run.
  * \param mm_arg_size The relay page size for this enclave, map before enclave run.  
@@ -1523,9 +1523,9 @@ run_enclave_out:
 }
 
 /**
- * \brief Run shodow enclave with the given eid.
+ * \brief Fork an enclave instance from shodow enclave and run this enclave instance immediately.
  * 
- * \param regs The host reg need to saved.
+ * \param regs The host reg need to save.
  * \param eid The given shadow enclave id.
  * \param enclave_run_param The parameter for run a shadow enclave.
  * \param mm_arg_addr The relay page address for this enclave, map before enclave run.
@@ -1769,7 +1769,7 @@ uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t n
 /**
  * \brief host use this function to wake a stopped enclave.
  * 
- * \param regs The host reg need to saved.
+ * \param regs The host reg need to save.
  * \param eid The given enclave id. 
  */
 uintptr_t wake_enclave(uintptr_t* regs, unsigned int eid)
@@ -1796,7 +1796,7 @@ wake_enclave_out:
 /**
  * \brief Resume the enclave from the previous status.
  * 
- * \param regs The host reg need to saved.
+ * \param regs The host reg need to save.
  * \param eid The given enclave id. 
  */
 uintptr_t resume_enclave(uintptr_t* regs, unsigned int eid)
@@ -1851,7 +1851,7 @@ resume_enclave_out:
 }
 
 /**
- * \brief Map the memory for ocall return.
+ * \brief Map the enclave memory before ocall returns.
  * 
  * \param enclave The enclave structure.
  * \param paddr The mapped physical address.
@@ -1896,7 +1896,7 @@ uintptr_t mmap_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintptr_
 }
 
 /**
- * \brief Map the sbrk memory for ocall return.
+ * \brief Map the sbrk memory (heap) before ocall returns.
  * 
  * \param enclave The enclave structure.
  * \param paddr The mapped physical address.
@@ -1937,7 +1937,7 @@ uintptr_t sbrk_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintptr_
 }
 
 /**
- * \brief Map the relay page for ocall return.
+ * \brief Map the relay page before ocall returns.
  * 
  * \param enclave The enclave structure.
  * \param mm_arg_addr Relay page address.
@@ -2341,7 +2341,7 @@ exit_enclave_out:
 }
 
 /**
- * \brief Enclave needs to map a new mmap region, ocall to the host to handle.
+ * \brief Enclave needs to map a new mmap region, ocall to host to handle it.
  * 
  * \param regs The enclave register context.
  * \param vaddr Mmap virtual address.
@@ -2382,7 +2382,7 @@ out:
 }
 
 /**
- * \brief Enclave needs to unmap a mmap region, ocall to the host to handle.
+ * \brief Enclave needs to unmap a mmap region, ocall to host to handle it.
  * 
  * \param regs The enclave register context.
  * \param vaddr Unmap virtual address.
@@ -2440,7 +2440,7 @@ out:
 }
 
 /**
- * \brief Enclave calls sbrk() in the runtime, ocall to the host to handle.
+ * \brief Enclave calls sbrk() during the runtime to expand heap, ocall to host to handle it.
  * 
  * \param regs The enclave register context.
  * \param size Stack augment memory size.
@@ -2520,7 +2520,7 @@ out:
 }
 
 /**
- * \brief Enclave calls print() in the runtime, ocall to the host to handle.
+ * \brief Enclave calls print() during the runtime, ocall to host to handle it.
  * 
  * \param regs The enclave register context.
  */
@@ -2890,7 +2890,7 @@ timer_irq_out:
 }
 
 /**
- * \brief Handle the yield for enclave.
+ * \brief (remove) Handle the yield() in enclave during the runtime.
  * 
  * \param regs The enclave register context.
  * \param mcause CSR register of mcause.
@@ -2922,7 +2922,7 @@ timer_irq_out:
 }
 
 /**
- * \brief IPI notifaction to destroy enclave.
+ * \brief IPI notifaction to destroy enclave, check whether the target enclave is running.
  * 
  * \param regs The enclave register context.
  * \param host_ptbr host ptbr register.
@@ -2988,7 +2988,7 @@ ipi_destroy_enclave_out:
 }
 
 /**
- * \brief IPI notifaction to stop enclave.
+ * \brief IPI notifaction to stop enclave, check wether the target enclave is running.
  * 
  * \param regs The enclave register context.
  * \param host_ptbr host ptbr register.
@@ -3032,7 +3032,7 @@ ipi_stop_enclave_out:
 
 
 /**
- * \brief Enclave call read in the runtime, ocall to the host to handle.
+ * \brief Enclave call read() in the runtime, ocall to the host to handle.
  * 
  * \param regs The enclave register context.
  */
@@ -3091,7 +3091,7 @@ out:
 }
 
 /**
- * \brief Enclave return the relay page in the runtime, ocall to the host to handle.
+ * \brief Enclave return the relay page to host, unmap these pages and back to the host.
  * 
  * \param regs The enclave register context.
  */
