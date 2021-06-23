@@ -88,6 +88,12 @@ static int enclave_name_cmp(char* name1, char* name2)
 //copy data from host
 uintptr_t copy_from_host(void* dest, void* src, size_t size)
 {
+  //FIXME: check whether src is a legitimate address
+  if(test_public_range(PADDR_TO_PFN((unsigned long)src), 1) != 0)
+  {
+    sbi_bug("M mode: copy_from_host: illegal copy from host \n");
+    return -1;
+  }
   sbi_memcpy(dest, src, size);
   return 0;
 }
@@ -95,6 +101,12 @@ uintptr_t copy_from_host(void* dest, void* src, size_t size)
 // copy data to host
 uintptr_t copy_to_host(void* dest, void* src, size_t size)
 {
+  //FIXME: check whether dest is a legitimate address
+  if(test_public_range(PADDR_TO_PFN((unsigned long)dest), 1) != 0)
+  {
+    sbi_bug("M mode: copy_to_host: illegal copy to host \n");
+    return -1;
+  }
   sbi_memcpy(dest, src, size);
   return 0;
 }
@@ -102,6 +114,12 @@ uintptr_t copy_to_host(void* dest, void* src, size_t size)
 // Copy a word value to the host 
 int copy_word_to_host(unsigned int* ptr, uintptr_t value)
 {
+  //FIXME: check whether ptr is a legitimate address
+  if(test_public_range(PADDR_TO_PFN((unsigned long)ptr), 1) != 0)
+  {
+    sbi_bug("M mode: copy_word_to_host: illegal copy to host \n");
+    return -1;
+  }
   *ptr = value;
   return 0;
 }
@@ -109,6 +127,12 @@ int copy_word_to_host(unsigned int* ptr, uintptr_t value)
 // Copy double word to the host
 int copy_dword_to_host(uintptr_t* ptr, uintptr_t value)
 {
+  //FIXME: check whether ptr is a legitimate address
+  if(test_public_range(PADDR_TO_PFN((unsigned long)ptr), 1) != 0)
+  {
+    sbi_bug("M mode: copy_dword_to_host: illegal copy to host \n");
+    return -1;
+  }
   *ptr = value;
   return 0;
 }
@@ -2226,7 +2250,7 @@ out:
 }
 
 /**
- * \brief Get enclave attestation report.
+ * \brief Get enclave attestation report, called by enclave.
  *
  * \param report The attestation report address in enclave.
  * \param nonce The attestation nonce
@@ -2273,7 +2297,7 @@ uintptr_t get_enclave_attest_report(uintptr_t *report, uintptr_t nonce)
   m_report.enclave.nonce = nonce;
 
   // Copy attestation report to enclave
-  copy_from_host(u_report, &m_report, sizeof(struct report_t));
+  sbi_memcpy(u_report, &m_report, sizeof(struct report_t));
 
 
 out:
@@ -2608,7 +2632,7 @@ uintptr_t call_enclave(uintptr_t* regs, unsigned int callee_eid, uintptr_t arg)
     retval = -1UL;
     goto out;
   }
-  copy_from_host(&call_arg, call_arg0, sizeof(struct call_enclave_arg_t));
+  sbi_memcpy(&call_arg, call_arg0, sizeof(struct call_enclave_arg_t));
   if(call_arg.req_vaddr != 0)
   {
     if(call_arg.req_vaddr & (RISCV_PGSIZE-1) || call_arg.req_size < RISCV_PGSIZE || call_arg.req_size & (RISCV_PGSIZE-1))
@@ -2739,7 +2763,7 @@ uintptr_t enclave_return(uintptr_t* regs, uintptr_t arg)
     ret = -1UL;
     goto out;
   }
-  copy_from_host(&ret_arg, ret_arg0, sizeof(struct call_enclave_arg_t));
+  sbi_memcpy(&ret_arg, ret_arg0, sizeof(struct call_enclave_arg_t));
 
   caller_enclave = __get_enclave(enclave->caller_eid);
   top_caller_enclave = __get_enclave(enclave->top_caller_eid);
