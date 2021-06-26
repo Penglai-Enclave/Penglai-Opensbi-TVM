@@ -19,6 +19,7 @@
 #include <sbi/sbi_ipi.h>
 #include <sbi/sbi_platform.h>
 #include <sbi/sbi_pmp.h>
+#include <sbi/sbi_string.h>
 
 struct sbi_ipi_data {
 	unsigned long ipi_type;
@@ -246,8 +247,16 @@ void sbi_ipi_process_in_enclave(struct sbi_trap_regs* regs)
 			goto skip;
 
 		ipi_ops = ipi_ops_array[ipi_event];
-		if (ipi_ops && ipi_ops->e_process)
-			ipi_ops->e_process(scratch, regs);
+		if ((!sbi_strcmp(ipi_ops->name, "IPI_STOP_ENCLAVE")) || (!sbi_strcmp(ipi_ops->name, "IPI_DESTROY_ENCLAVE")))
+		{
+			if (ipi_ops && ipi_ops->e_process)
+				ipi_ops->e_process(scratch, regs);
+		}
+		else
+		{
+			if (ipi_ops && ipi_ops->process)
+				ipi_ops->process(scratch);
+		}
 
 skip:
 		ipi_type = ipi_type >> 1;
