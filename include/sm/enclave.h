@@ -240,6 +240,7 @@ uintptr_t enclave_sbrk(uintptr_t* regs, intptr_t size);
 uintptr_t enclave_read_sec(uintptr_t *regs, uintptr_t sec);
 uintptr_t enclave_write_sec(uintptr_t *regs, uintptr_t sec);
 uintptr_t enclave_return_relay_page(uintptr_t *regs);
+uintptr_t enclave_getrandom(uintptr_t *regs, uintptr_t random_buff, uintptr_t size);
 uintptr_t do_yield(uintptr_t* regs);
 
 // IPI

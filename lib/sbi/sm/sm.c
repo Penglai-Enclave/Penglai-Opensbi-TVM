@@ -992,7 +992,10 @@ uintptr_t sm_enclave_ocall(uintptr_t* regs, uintptr_t ocall_id, uintptr_t arg0, 
       break;
     case OCALL_RETURN_RELAY_PAGE:
       ret = enclave_return_relay_page(regs);
-      break;   
+      break;
+    case OCALL_GETRANDOM:
+      ret = enclave_getrandom(regs, arg0, arg1);
+      break;
     default:
       ret = -1UL;
       break;
