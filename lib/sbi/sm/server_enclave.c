@@ -495,7 +495,7 @@ uintptr_t get_server_enclave_attest_report(char* name, uintptr_t *report, uintpt
   m_report.enclave.nonce = nonce;
 
   // Copy attestation report to enclave
-  copy_to_host(u_report, &m_report, sizeof(struct report_t));
+  sbi_memcpy(u_report, &m_report, sizeof(struct report_t));
 out:
   release_enclave_metadata_lock();
   return ret;

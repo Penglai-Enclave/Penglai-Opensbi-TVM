@@ -75,6 +75,7 @@
 #define OCALL_READ_SECT              5
 #define OCALL_WRITE_SECT             6
 #define OCALL_RETURN_RELAY_PAGE      7
+#define OCALL_GETRANDOM              8
 
 typedef int page_meta;
 #define NORMAL_PAGE                      ((page_meta)0x7FFFFFFF)
