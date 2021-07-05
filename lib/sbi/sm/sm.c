@@ -1104,6 +1104,7 @@ uintptr_t sm_server_enclave_acquire(uintptr_t *regs, uintptr_t server_name)
  * \param regs   The enclave regs.
  * \param name   Enclave name, NULL for current enclave.
  * \param report The structure of the attestatio report.
+ * \param nonce  The nonce for this attested request
  */
 uintptr_t sm_get_report(uintptr_t *regs, char* name, uintptr_t *report, uintptr_t nonce)
 {
@@ -1113,6 +1114,23 @@ uintptr_t sm_get_report(uintptr_t *regs, char* name, uintptr_t *report, uintptr_
     ret = get_enclave_attest_report(report, nonce);
   else
     ret = get_server_enclave_attest_report(name, report, nonce);
+
+  return ret;
+}
+
+/**
+ * \brief Retrun key to enclave.
+ * 
+ * \param regs      The enclave regs.
+ * \param key_type  Acquired key type.
+ * \param key       Received key pointer.
+ * \param key_len   Received key size 
+ */
+uintptr_t sm_get_key(uintptr_t *regs, uintptr_t key_type, uintptr_t *key, uintptr_t key_size)
+{
+  uintptr_t ret = 0;
+
+  ret = derive_key(key_type, key, key_size);
 
   return ret;
 }

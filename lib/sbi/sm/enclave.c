@@ -13,6 +13,7 @@
 #include "sm/platform/pt_area/platform_thread.h"
 #include "sm/ipi.h"
 #include "sm/attest.h"
+#include "sm/key.h"
 #include <sbi/sbi_tlb.h>
 
 int eapp_args = 0;
@@ -2299,6 +2300,57 @@ uintptr_t get_enclave_attest_report(uintptr_t *report, uintptr_t nonce)
   // Copy attestation report to enclave
   sbi_memcpy(u_report, &m_report, sizeof(struct report_t));
 
+
+out:
+  release_enclave_metadata_lock();
+  return ret;
+}
+
+/**
+ * \brief Derive enclave specific key.
+ *
+ * \param key_type The key type.
+ * \param key The received key pointer.
+ * \param key_size The received key size.
+ */
+uintptr_t derive_key(uintptr_t key_type, uintptr_t *key, uintptr_t key_size)
+{
+  uintptr_t ret = 0;
+  struct enclave_t *enclave = NULL;
+  int eid = 0; 
+  if(check_in_enclave_world() < 0)
+  {
+    sbi_bug("M mode: derive_key: CPU is not in the enclave mode\n");
+    return -1UL;
+  }
+
+  acquire_enclave_metadata_lock();
+
+  eid = get_curr_enclave_id();
+  enclave = __get_enclave(eid);
+  if(!enclave|| check_enclave_authentication(enclave)!=0 || enclave->state != RUNNING)
+  {
+    ret = -1UL;
+    sbi_bug("M mode: derive_key: enclave%d can not be accessed!\n", eid);
+    goto out;
+  }
+
+  // Get the physical address of the attestaion report
+  char* u_key = va_to_pa((uintptr_t*)(enclave->root_page_table), (void*)key);
+  if(!u_key)
+  {
+    sbi_bug("M mode: derive_key: key pointer is invalid \n");
+    ret = -1UL;
+    goto out;
+  }
+
+  char m_key[KEY_SIZE_BYTES];
+
+  if (m_derive_key((int)key_type, eid, (int)key_size, m_key) != 0)
+  {
+    sbi_bug("M mode: derive_key: derive key from the root key is failed\n");
+    ret = -1;
+  }
 
 out:
   release_enclave_metadata_lock();
