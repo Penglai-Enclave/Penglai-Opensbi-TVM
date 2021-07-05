@@ -18,7 +18,7 @@ static char enclave_key[KEY_SIZE_BYTES] = {
         0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30, 0x83, 0x08
     };
 
-int m_derive_key(int key_type, int eid, int key_size, char *okey)
+int m_derive_key(int key_type, unsigned char *enclave_hash, int key_size, char *okey)
 {
     int ret = 0;
     
@@ -26,11 +26,11 @@ int m_derive_key(int key_type, int eid, int key_size, char *okey)
     switch (key_type)
     {
         case ENCLAVE_KEY:
-            hkdf(SHA256, (unsigned char *)&eid, sizeof(eid), (unsigned char *)enclave_key, KEY_SIZE_BYTES,
+            hkdf(SHA256, enclave_hash, HASH_SIZE, (unsigned char *)enclave_key, KEY_SIZE_BYTES,
                     NULL, 0, (uint8_t *)okey, key_size);
             break;
         case STORAGE_KEY:
-            hkdf(SHA256, (unsigned char *)&eid, sizeof(eid), (unsigned char *)storage_key, KEY_SIZE_BYTES,
+            hkdf(SHA256, enclave_hash, HASH_SIZE, (unsigned char *)storage_key, KEY_SIZE_BYTES,
                     NULL, 0, (uint8_t *)okey, key_size);
             break;
         default:

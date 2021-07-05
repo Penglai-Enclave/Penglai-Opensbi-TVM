@@ -2346,7 +2346,7 @@ uintptr_t derive_key(uintptr_t key_type, uintptr_t *key, uintptr_t key_size)
 
   char m_key[KEY_SIZE_BYTES];
 
-  if (m_derive_key((int)key_type, eid, (int)key_size, m_key) != 0)
+  if (m_derive_key((int)key_type, enclave->hash, (int)key_size, m_key) != 0)
   {
     sbi_bug("M mode: derive_key: derive key from the root key is failed\n");
     ret = -1;

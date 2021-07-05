@@ -525,7 +525,7 @@ uintptr_t get_caller_id(uintptr_t* regs)
     goto failed;
   }
 
-  ret = enclave->caller_eid;
+  sbi_memcmp(&ret, enclave->hash, HASH_SIZE);
 
   release_enclave_metadata_lock();
   return ret;

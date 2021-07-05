@@ -3,7 +3,7 @@
 
 #define KEY_SIZE_BYTES 32
 
-int m_derive_key(int key_type, int eid, int key_size, char *okey);
+int m_derive_key(int key_type, unsigned char *enclave_hash, int key_size, char *okey);
 
 #endif
 
