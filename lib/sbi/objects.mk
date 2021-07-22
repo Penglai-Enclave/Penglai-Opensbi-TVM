@@ -61,3 +61,4 @@ libsbi-objs-y += sm/gm/ecc.o
 libsbi-objs-y += sm/gm/random.o
 libsbi-objs-y += sm/gm/sm3.o
 libsbi-objs-y += sm/gm/sm2.o
+libsbi-objs-y += sm/enclave_shm.o

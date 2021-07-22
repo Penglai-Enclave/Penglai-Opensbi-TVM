@@ -150,14 +150,14 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 	spin_unlock(&cpu_in_critical_lock);
 	uintptr_t n = regs->a7;
 	csr_write(CSR_MEPC, regs->mepc + 4);
-	uintptr_t arg0 = regs->a0, arg1 = regs->a1, arg2 = regs->a2;
+	uintptr_t arg0 = regs->a0, arg1 = regs->a1, arg2 = regs->a2, arg3 = regs->a3;
 	switch (n)
 	{
 		case SBI_EXIT_ENCLAVE:
 			retval = sm_exit_enclave((uintptr_t*)regs, arg0);
 			break;
 		case SBI_ENCLAVE_OCALL:
-			retval = sm_enclave_ocall((uintptr_t*)regs, arg0, arg1, arg2);
+			retval = sm_enclave_ocall((uintptr_t*)regs, arg0, arg1, arg2, arg3);
 			break;
 		case SBI_ACQUIRE_SERVER:
 			retval = sm_server_enclave_acquire((uintptr_t*)regs, arg0);
@@ -186,7 +186,9 @@ int enclave_call_trap(struct sbi_trap_regs* regs)
 		case SBI_GET_REPORT:
 			retval = sm_get_report((uintptr_t*)regs, (char*)arg0, (uintptr_t*)arg1, arg2);
 			break;
-
+		case SBI_SHM_ATTACH:
+			retval = sm_shm_attatch((uintptr_t*)regs, arg0);
+			break;
 		default:
 			retval = SBI_ERR_FAILED;
 			sbi_bug("M mode: enclave_call_trap: unsupported ecall number %lx from enclave\n", n);

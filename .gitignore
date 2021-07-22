@@ -2,7 +2,7 @@
 *.o
 *.a
 *.dep
-
+.vscode
 #Build & install directories
 build/
 install/

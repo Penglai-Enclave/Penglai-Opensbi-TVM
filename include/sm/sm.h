@@ -65,7 +65,10 @@
 #define SBI_GET_CALLER_ID        91
 #define SBI_GET_ENCLAVE_ID       90
 #define SBI_YIELD                89
-#define SBI_GET_REPORT           94 
+#define SBI_GET_REPORT           94
+
+#define SBI_SHM_ATTACH           84
+#define SBI_SHM_DESTROY          83
 
 //ENCLAVE OCALL NUMBERS
 #define OCALL_MMAP                   1
@@ -75,6 +78,9 @@
 #define OCALL_READ_SECT              5
 #define OCALL_WRITE_SECT             6
 #define OCALL_RETURN_RELAY_PAGE      7
+#define OCALL_SHM_GET                8
+#define OCALL_SHM_DETACH             9
+#define OCALL_SHM_DESTROY            10
 
 typedef int page_meta;
 #define NORMAL_PAGE                      ((page_meta)0x7FFFFFFF)
@@ -134,7 +140,7 @@ uintptr_t sm_attest_shadow_enclave(uintptr_t enclave_id, uintptr_t report, uintp
 uintptr_t sm_destroy_shadow_enclave(uintptr_t *regs, uintptr_t enclave_id);
 
 // Called by enclave
-uintptr_t sm_enclave_ocall(uintptr_t *regs, uintptr_t ocall_func_id, uintptr_t arg0, uintptr_t arg1);
+uintptr_t sm_enclave_ocall(uintptr_t *regs, uintptr_t ocall_func_id, uintptr_t arg0, uintptr_t arg1, uintptr_t arg2);
 uintptr_t sm_exit_enclave(uintptr_t *regs, uintptr_t retval);
 // IPC interfaces for enclaves
 uintptr_t sm_server_enclave_acquire(uintptr_t *regs, uintptr_t server_name);
