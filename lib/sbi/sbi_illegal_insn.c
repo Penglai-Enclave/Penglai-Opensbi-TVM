@@ -141,9 +141,10 @@ int sbi_illegal_insn_handler(ulong insn, struct sbi_trap_regs *regs)
 		&& (((inst>>12) & 0x3) == 0b001))
 	{
 		// printm("here0 %d\r\n",((inst>>15) & 0x1f));
-		signed long val = *((unsigned long *)regs + ((inst>>15) & 0x1f));
+		unsigned long val = *((unsigned long *)regs + ((inst>>15) & 0x1f));
 		unsigned long pa = (val & 0x3fffff)<<12;
-		if((pt_area_base < pa) && ((pt_area_base + (1<<pgd_order)*4096) > pa))
+		bool enable_mmu = ((val >> 60) == 0x8);
+		if((pt_area_base < pa) && ((pt_area_base + (1<<pgd_order)*4096) > pa) && enable_mmu)
 		{
 			asm volatile ("csrrw x0, sptbr, %0":: "rK"(val));
 			csr_write(CSR_MEPC, mepc + 4);
