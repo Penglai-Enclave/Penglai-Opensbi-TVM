@@ -65,7 +65,8 @@
 #define SBI_GET_CALLER_ID        91
 #define SBI_GET_ENCLAVE_ID       90
 #define SBI_YIELD                89
-#define SBI_GET_REPORT           94 
+#define SBI_GET_REPORT           94
+#define SBI_GET_KEY              88
 
 //ENCLAVE OCALL NUMBERS
 #define OCALL_MMAP                   1
@@ -143,6 +144,7 @@ uintptr_t sm_call_enclave(uintptr_t *regs, uintptr_t enclave_id, uintptr_t arg);
 uintptr_t sm_asyn_enclave_call(uintptr_t *regs, uintptr_t enclave_name, uintptr_t arg);
 uintptr_t sm_enclave_return(uintptr_t *regs, uintptr_t arg);
 uintptr_t sm_get_report(uintptr_t *regs, char* name, uintptr_t *report, uintptr_t nonce);
+uintptr_t sm_get_key(uintptr_t *regs, uintptr_t key_type, uintptr_t *key, uintptr_t key_size);
 
 uintptr_t sm_get_caller_id(uintptr_t *regs);
 uintptr_t sm_get_enclave_id(uintptr_t *regs);
