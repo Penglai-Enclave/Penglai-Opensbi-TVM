@@ -13,6 +13,8 @@
 #define SBI_SET_PTE_ONE          1
 #define SBI_PTE_MEMSET           2
 #define SBI_PTE_MEMCPY           3
+#define SBI_SET_PTE_BATCH_ZERO   4
+#define SBI_SET_PTE_BATCH_SET    5
 #define SBI_SM_INIT            100
 #define SBI_CREATE_ENCLAVE      99
 #define SBI_ATTEST_ENCLAVE      98
@@ -93,6 +95,14 @@ typedef int page_meta;
     (PRIVATE_PAGE | ((page_meta)pos & NORMAL_PAGE)) \
     : ((page_meta)pos & NORMAL_PAGE))
 #define SCHRODINGER_PTE_POS(meta)        (IS_ZERO_MAP_PAGE(meta) ? -1 : ((int)meta & (int)0x7FFFFFFF))
+
+struct pt_area_batch_t {
+	unsigned long ptep_base;
+	union {
+		unsigned long ptep_size;
+		unsigned long ptep_entry;
+	} entity;
+};
 
 void sm_init();
 

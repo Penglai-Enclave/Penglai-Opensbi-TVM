@@ -538,6 +538,40 @@ inline int check_huge_pt(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src, in
 }
 
 /**
+ * \brief Set and check a single pte entry.
+ * 
+ * \param pte_dest The location of pt entry in pt area
+ * \param pte_src The content of pt entry
+ */
+inline int set_check_single_pte(uintptr_t *pte_addr, uintptr_t pte_src, int pte_num)
+{
+  int ret = 0;
+  if((!IS_PGD(pte_src)) && PTE_VALID(pte_src))
+  {
+    uintptr_t pfn = PTE_TO_PFN(pte_src);
+    if (check_pt_location((uintptr_t)pte_addr, PTE_TO_PA(pte_src), pte_src) < 0)
+    {
+      ret = -1;
+      sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: check_pt_location is failed \r\n");
+    }
+    if(test_public_range(pfn, pte_num) < 0)
+    {
+      ret = -1;
+      sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: test_public_range is failed \r\n");
+    }
+  }
+  set_single_pte(pte_addr, pte_src);
+  
+  return ret;
+}
+
+// unsigned long count_pte_one;
+// unsigned long count_pte_memset;
+// unsigned long count_pte_memcpy;
+// unsigned long count_pte_batch_zero;
+// unsigned long count_pte_batch_set;
+
+/**
  * \brief Set pte entry. It will be triggered by the untrusted OS when writing pte entry (set, copy, clear, etc).
  * Before setting the pte entry, check whether the mapped page is non secure (in the public range).
  * 
@@ -549,42 +583,35 @@ inline int check_huge_pt(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src, in
 uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uintptr_t size)
 {
   unsigned long ret = 0;
-  // if(test_public_range(PADDR_TO_PFN((uintptr_t)pte_addr),1) < 0){
-  //   sbi_bug("M mode: sm_set_pte: test_public_range is failed\r\n");
-  //   return -1;
-  // }
   int pte_num = 1;
+  // if (pt_area_base)
+  // {
+  //   sbi_debug("count_pte_one %ld count_pte_memset %ld count_pte_memcpy %ld count_pte_batch_zero %ld count_pte_batch_set %ld\n", 
+  //    count_pte_one, count_pte_memset, count_pte_memcpy, count_pte_batch_zero, count_pte_batch_set);
+  // }
   check_huge_pt((uintptr_t)pte_addr, PTE_TO_PA(pte_src), pte_src, &pte_num);
   spin_lock(&mbitmap_lock);
   switch(flag)
   {
     case SBI_SET_PTE_ONE:
-      if((!IS_PGD(pte_src)) && PTE_VALID(pte_src))
-      {
-        uintptr_t pfn = PTE_TO_PFN(pte_src);
-        if (check_pt_location((uintptr_t)pte_addr, PTE_TO_PA(pte_src), pte_src) < 0)
-        {
-          ret = -1;
-          sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: check_pt_location is failed \r\n");
-          goto free_mbitmap_lock;
-          break;
-        }
-        if(test_public_range(pfn, pte_num) < 0)
-        {
-          ret = -1;
-          sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: test_public_range is failed \r\n");
-          goto free_mbitmap_lock;
-        }
-      }
-      set_single_pte(pte_addr, pte_src);
+      // if (pt_area_base)
+      // {
+      //   count_pte_one++;
+      // }
+      if ((ret = set_check_single_pte(pte_addr, pte_src, pte_num)) != 0)
+        goto free_mbitmap_lock;
       break;
     case SBI_PTE_MEMSET:
+    // if (pt_area_base)
+    //   {
+    //     count_pte_memset++;
+    //   }
       if((!IS_PGD(pte_src)) && PTE_VALID(pte_src))
       {
         if(test_public_range(PTE_TO_PFN(pte_src),pte_num) < 0)
         {
           ret = -1;
-          sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMSET: test_public_range is failed \r\n");
+          sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMSET: test_public_range is failed \n");
           goto free_mbitmap_lock;
         }
       }
@@ -596,10 +623,14 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
       }
       break;
     case SBI_PTE_MEMCPY:
+      // if (pt_area_base)
+      // {
+      //   count_pte_memcpy++;
+      // }
       if(size % 8)
       {
         ret = -1;
-        sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMCPY: size align is failed \r\n");
+        sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMCPY: size align is failed \n");
         goto free_mbitmap_lock;
       }
       unsigned long i=0, pagenum=size>>3;
@@ -611,7 +642,7 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
           if(test_public_range(PTE_TO_PFN(pte),pte_num) < 0)
           {
             ret =-1;
-            sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMCPY: test_public_range is failed \r\n");
+            sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMCPY: test_public_range is failed \n");
             goto free_mbitmap_lock;
           }
         }
@@ -623,6 +654,54 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
         set_single_pte(pte_addr, pte);
       }
       break;
+    case SBI_SET_PTE_BATCH_ZERO:
+    {
+      // if (pt_area_base)
+      // {
+      //   count_pte_batch_zero++;
+      // }
+      uintptr_t index = pte_src;
+      // FIXME: 
+      // Check whether pt_area_batch is a legal pointer
+      struct pt_area_batch_t * pt_area_batch = (struct pt_area_batch_t *)pte_addr;
+      uintptr_t i, single_pte_addr;
+
+      for (i = 0; i < index; i++)
+      {
+        for (single_pte_addr = pt_area_batch[i].ptep_base; single_pte_addr < pt_area_batch[i].ptep_base+pt_area_batch[i].entity.ptep_size; single_pte_addr+=8)
+        {
+          if ((ret = set_check_single_pte((uintptr_t *)single_pte_addr, 0, pte_num)) != 0)
+          {
+            sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_BATCH_ZERO: check pte entry is failed\n");
+            goto free_mbitmap_lock;
+          }
+        }
+      }
+      break;
+    }
+    case SBI_SET_PTE_BATCH_SET:
+    {
+      // if (pt_area_base)
+      // {
+      //   count_pte_batch_set++;
+      // }
+      uintptr_t index = pte_src;
+      // FIXME: 
+      // Check whether pt_area_batch is a legal pointer
+      struct pt_area_batch_t * pt_area_batch = (struct pt_area_batch_t *)pte_addr;
+      uintptr_t i, single_pte_addr;
+
+      for (i = 0; i < index; i++)
+      {
+        single_pte_addr = pt_area_batch[i].ptep_base;
+        if ((ret = set_check_single_pte((uintptr_t *)single_pte_addr, pt_area_batch[i].entity.ptep_entry, pte_num)) != 0)
+        {
+          sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_BATCH_SET: check pte entry is failed\n");
+          goto free_mbitmap_lock;
+        }
+      }
+      break;
+    }
     default:
       ret = -1;
       break;
