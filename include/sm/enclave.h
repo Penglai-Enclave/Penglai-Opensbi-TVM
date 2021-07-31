@@ -248,7 +248,7 @@ uintptr_t shmget_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintpt
 uintptr_t sm_shm_attatch(uintptr_t* regs, uintptr_t key);
 uintptr_t enclave_shmdetach(uintptr_t* regs, uintptr_t key);
 uintptr_t enclave_shmdestroy(uintptr_t* regs, uintptr_t key);
-int enclave_shm_init();
+uintptr_t sm_shm_stat(uintptr_t* regs, uintptr_t key, uintptr_t shm_desp_user);
 
 // IPI
 uintptr_t ipi_stop_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid);

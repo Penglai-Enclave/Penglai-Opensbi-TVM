@@ -68,6 +68,7 @@
 #define SBI_GET_REPORT           94
 
 #define SBI_SHM_ATTACH           84
+#define SBI_SHM_STAT             83
 
 //ENCLAVE OCALL NUMBERS
 #define OCALL_MMAP                   1

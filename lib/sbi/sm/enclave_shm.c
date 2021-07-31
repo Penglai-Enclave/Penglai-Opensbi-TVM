@@ -325,6 +325,8 @@ uintptr_t sm_shm_attatch(uintptr_t *regs, uintptr_t shm_key)
 	return retval;
 }
 
+
+
 uintptr_t enclave_shmdetach(uintptr_t *regs, uintptr_t shm_key)
 {
 	int eid = get_curr_enclave_id();
@@ -415,6 +417,35 @@ uintptr_t enclave_shmdestroy(uintptr_t *regs, uintptr_t shm_key)
 		release_enclave_metadata_lock();
 		return ENCLAVE_OCALL;
 	}
+	release_enclave_metadata_lock();
+	return 0;
+}
+
+uintptr_t sm_shm_stat(uintptr_t *regs, uintptr_t shm_key, uintptr_t shm_desp_user)
+{
+	int eid = get_curr_enclave_id();
+	struct enclave_t * enclave = NULL;
+	struct sbi_shm_infop *shm = NULL;
+	struct sbi_shm_des* des_pa;
+	if(check_in_enclave_world() < 0)
+	{
+		return -1UL;
+	}
+	if(!shm_init)
+	{
+		return -1UL;
+	}
+	acquire_enclave_metadata_lock();
+	enclave = __get_enclave(eid);
+	shm = get_shm_info(shm_key);
+	if(shm == NULL || shm->pma.paddr == 0)
+	{
+		release_enclave_metadata_lock();
+		return -1UL;
+	}
+	des_pa = (struct sbi_shm_des*)va_to_pa((uintptr_t*)(enclave->root_page_table), (void*)shm_desp_user);
+	des_pa->ref_count = shm->shm_refcount;
+	des_pa->shm_size = shm->pma.size;
 	release_enclave_metadata_lock();
 	return 0;
 }

@@ -38,5 +38,10 @@ struct sbi_shm_metadata
     char padding[24];
 };
 
+struct sbi_shm_des{
+    unsigned long ref_count;
+    unsigned long shm_size;
+};
+
 
 #endif
