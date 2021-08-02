@@ -2429,11 +2429,11 @@ uintptr_t enclave_mmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size)
   int eid = get_curr_enclave_id();
   struct enclave_t* enclave = NULL;
   if(check_in_enclave_world() < 0)
-    return -1;
+    return SYS_NULL;
   if(vaddr)
   {
     if(vaddr & (RISCV_PGSIZE-1) || size < RISCV_PGSIZE || size & (RISCV_PGSIZE-1))
-      return -1;
+      return SYS_NULL;
   }
 
   acquire_enclave_metadata_lock();
@@ -2441,7 +2441,7 @@ uintptr_t enclave_mmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size)
   enclave = __get_enclave(eid);
   if(!enclave || check_enclave_authentication(enclave)!=0 || enclave->state != RUNNING)
   {
-    ret = -1UL;
+    ret = SYS_NULL;
     goto out;
   }
 

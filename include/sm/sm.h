@@ -10,11 +10,6 @@
 
 //SBI_CALL NUMBERS
 #define SBI_SET_PTE            101
-#define SBI_SET_PTE_ONE          1
-#define SBI_PTE_MEMSET           2
-#define SBI_PTE_MEMCPY           3
-#define SBI_SET_PTE_BATCH_ZERO   4
-#define SBI_SET_PTE_BATCH_SET    5
 #define SBI_SM_INIT            100
 #define SBI_CREATE_ENCLAVE      99
 #define SBI_ATTEST_ENCLAVE      98
@@ -36,27 +31,34 @@
 #define SBI_SM_PT_AREA_SEPARATION        83
 #define SBI_SM_SPLIT_HUGE_PAGE           82
 #define SBI_SM_MAP_PTE                   81
-#define SBI_ATTEST_SHADOW_ENCLAVE 80
+#define SBI_ATTEST_SHADOW_ENCLAVE        80
 
-//Error code of SBI_CREATE_ENCLAVE
+//SBI_SET_PTE reason
+#define SBI_SET_PTE_ONE          1
+#define SBI_PTE_MEMSET           2
+#define SBI_PTE_MEMCPY           3
+#define SBI_SET_PTE_BATCH_ZERO   4
+#define SBI_SET_PTE_BATCH_SET    5
+
+//Error code of enclave sbi call
 #define ENCLAVE_ERROR           -1
 #define ENCLAVE_NO_MEM          -2
-#define ENCLAVE_ATTESTATION          -3
+#define ENCLAVE_ATTESTATION     -3
 
-//The enclave return result 
+//Enclave exit reason 
 #define ENCLAVE_SUCCESS          0
 #define ENCLAVE_TIMER_IRQ        1
 #define ENCLAVE_OCALL            2
 #define ENCLAVE_YIELD            3
 
-//The function id of the resume reason
+//Function id of resume reason
 #define RESUME_FROM_TIMER_IRQ    0
 #define RESUME_FROM_STOP         1
 #define RESUME_FROM_OCALL        2
 
-
 #define SBI_LEGAL_MAX            100UL
-//ENCLAVE_CALL NUMBERS
+
+//Enclave ocall reason
 #define SBI_EXIT_ENCLAVE         99
 #define SBI_ENCLAVE_OCALL        98
 #define SBI_ACQUIRE_SERVER       97
@@ -70,7 +72,10 @@
 #define SBI_GET_REPORT           94
 #define SBI_GET_KEY              88
 
-//ENCLAVE OCALL NUMBERS
+//Enclave ocall error number
+#define SYS_NULL                 0
+
+//Enclave ocall number
 #define OCALL_MMAP                   1
 #define OCALL_UNMAP                  2
 #define OCALL_SYS_WRITE              3
