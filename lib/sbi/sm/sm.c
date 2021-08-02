@@ -92,14 +92,14 @@ int contain_private_range(uintptr_t pfn, uintptr_t pagenum)
     return 0;
 
   if(pfn < ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT)){
-    sbi_bug("M mode: contain_private_range: pfn is out of the DRAM range\r\n");
+    sbi_bug("M mode: contain_private_range: pfn is out of the DRAM range\n");
     return -1;
   }
 
   pfn = pfn - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
   page_meta* meta = (page_meta*)mbitmap_base + pfn;
   if((uintptr_t)(meta + pagenum) > (mbitmap_base + mbitmap_size)){
-    sbi_bug("M mode: contain_private_range: meta is out of the mbitmap range\r\n");
+    sbi_bug("M mode: contain_private_range: meta is out of the mbitmap range\n");
     return -1;
   }
 
@@ -125,28 +125,25 @@ int contain_private_range(uintptr_t pfn, uintptr_t pagenum)
  * \param pfn The start page frame.
  * \param pagenum The page number in the pfn range.
  */
-int test_public_range(uintptr_t pfn, uintptr_t pagenum)
+inline int test_public_range(uintptr_t pfn, uintptr_t pagenum)
 {
-  if(!enable_enclave())
-    return 0;
-
-  if(pfn < ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT)){
-    sbi_bug("M mode: test_public_range: pfn is out of DRAM range\r\n");
+  if(unlikely(pfn < ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT))){
+    sbi_bug("M mode: test_public_range: pfn is out of DRAM range\n");
     return -1;
   }
 
   pfn = pfn - ((uintptr_t)DRAM_BASE >> RISCV_PGSHIFT);
   page_meta* meta = (page_meta*)mbitmap_base + pfn;
-  if((uintptr_t)(meta + pagenum) > (mbitmap_base + mbitmap_size)){
-    sbi_bug("M mode: test_public_range: meta is out of range\r\n");
+  if(unlikely((uintptr_t)(meta + pagenum) > (mbitmap_base + mbitmap_size))){
+    sbi_bug("M mode: test_public_range: meta is out of range\n");
     return -1;
   }
 
   uintptr_t cur = 0;
   while(cur < pagenum)
   {
-    if(!IS_PUBLIC_PAGE(*meta)){
-      sbi_bug("M mode: test_public_range: IS_PUBLIC_PAGE is failed\r\n");
+    if(unlikely(!IS_PUBLIC_PAGE(*meta))){
+      sbi_bug("M mode: test_public_range: IS_PUBLIC_PAGE is failed\n");
       return -1;
     }
     meta += 1;
@@ -277,7 +274,7 @@ uintptr_t sm_schrodinger_init(uintptr_t paddr, uintptr_t size)
         if(((pfn_base<pfn) && (pfn<pfn_end) && (pfn_end>pfn) && (pfn_end<(pfn+RISCV_PTENUM))) 
             || ((pfn_base<(pfn+RISCV_PTENUM)) && ((pfn+RISCV_PTENUM)<pfn_end) && (pfn_base>pfn) && (pfn_base<(pfn+RISCV_PTENUM))))
         {
-          sbi_bug(" M mode: ERROR: schrodinger_init: non-split page\r\n");
+          sbi_bug(" M mode: ERROR: schrodinger_init: non-split page\n");
           return -1;
         }
       }
@@ -317,7 +314,7 @@ uintptr_t sm_print(uintptr_t paddr, uintptr_t size)
     i += 1;
     meta += 1;
   }
-  sbi_printf("sm_print: paddr:0x%lx, zeromapnum:0x%x,singleapnum:0x%x,multimapnum:0x%x\r\n",
+  sbi_printf("sm_print: paddr:0x%lx, zeromapnum:0x%x,singleapnum:0x%x,multimapnum:0x%x\n",
       paddr, zero_map_num, single_map_num, multi_map_num);
   return 0;
 }
@@ -353,7 +350,7 @@ int unmap_mm_region(unsigned long paddr, unsigned long size)
     return 0;
 
   if(paddr < (uintptr_t)DRAM_BASE /*|| (paddr + size) > */){
-    sbi_bug("M mode: unmap_mm_region: paddr is less than DRAM_BASE\r\n");
+    sbi_bug("M mode: unmap_mm_region: paddr is less than DRAM_BASE\n");
     return -1;
   }
 
@@ -385,7 +382,7 @@ int unmap_mm_region(unsigned long paddr, unsigned long size)
         }
         else
         {
-          sbi_bug("M mode: ERROR: unmap_mm_region: non-split page\r\n");
+          sbi_bug("M mode: ERROR: unmap_mm_region: non-split page\n");
           return -1;
         }
       }
@@ -448,7 +445,7 @@ int remap_mm_region(unsigned long paddr, unsigned long size)
         }
         else
         {
-          sbi_bug("M mode: The partial of his huge page is belong to enclave and the rest is belong to untrusted OS\r\n");
+          sbi_bug("M mode: The partial of his huge page is belong to enclave and the rest is belong to untrusted OS\n");
           return -1;
         }
       }
@@ -492,12 +489,14 @@ inline int set_single_pte(uintptr_t *pte_dest, uintptr_t pte_src)
  */
 inline int check_pt_location(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src)
 {
+  if (pa == 0)
+    return 0;
   if((pt_area_base < pte_addr) && ((pt_area_pmd_base) > pte_addr))
   {
     if(((pt_area_pmd_base) > pa) || ((pt_area_pte_base) < pa) )
     {
-      sbi_printf("pt_area_base %lx pte_addr %lx pa %lx", pt_area_base, pte_addr, pa);
-      sbi_bug("M mode: invalid pt location\r\n");
+      sbi_printf("pt_area_base %lx pte_addr %lx pa %lx\n", pt_area_base, pte_addr, pa);
+      sbi_bug("M mode: invalid pt location\n");
       return -1;
     }
   }
@@ -507,9 +506,9 @@ inline int check_pt_location(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src
     {
       if (((pt_area_pte_base) > pa) || ((pt_area_end) < pa) )
       {
-        sbi_printf("pt_area_base %lx pt_area_pte_base %lx pt_area_pte_end %lx pte_addr %lx pa %lx\r\n", pt_area_base, (pt_area_pte_base), 
+        sbi_printf("pt_area_base %lx pt_area_pte_base %lx pt_area_pte_end %lx pte_addr %lx pa %lx\n", pt_area_base, (pt_area_pte_base), 
         (pt_area_end), pte_addr, pa);
-        sbi_bug("M mode: invalid pt location\r\n");
+        sbi_bug("M mode: invalid pt location\n");
         return -1;
       }
     }
@@ -527,7 +526,7 @@ inline int check_pt_location(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src
  */
 inline int check_huge_pt(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src, int *page_num)
 {
-  if(((pt_area_pmd_base) < pte_addr) && ((pt_area_pte_base) > pte_addr))
+  if(unlikely(((pt_area_pmd_base) < pte_addr) && ((pt_area_pte_base) > pte_addr)))
   {
     if((pte_src & PTE_V) && ((pte_src & PTE_R) || (pte_src & PTE_W) || (pte_src & PTE_X)))
     {
@@ -535,6 +534,34 @@ inline int check_huge_pt(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src, in
     }
   }
   return 0;
+}
+
+/**
+ * \brief Set and check a single pte entry.
+ * 
+ * \param pte_dest The location of pt entry in pt area
+ * \param pte_src The content of pt entry
+ */
+inline int set_check_single_pte(uintptr_t *pte_addr, uintptr_t pte_src, int pte_num)
+{
+  int ret = 0;
+  if(likely((!IS_PGD(pte_src)) && PTE_VALID(pte_src)))
+  {
+    uintptr_t pfn = PTE_TO_PFN(pte_src);
+    if (unlikely(check_pt_location((uintptr_t)pte_addr, PTE_TO_PA(pte_src), pte_src) < 0))
+    {
+      ret = -1;
+      sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: check_pt_location is failed \n");
+    }
+    if(unlikely(test_public_range(pfn, pte_num) < 0))
+    {
+      ret = -1;
+      sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: test_public_range is failed \n");
+    }
+  }
+  set_single_pte(pte_addr, pte_src);
+  
+  return ret;
 }
 
 /**
@@ -549,46 +576,23 @@ inline int check_huge_pt(uintptr_t pte_addr, uintptr_t pa, uintptr_t pte_src, in
 uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uintptr_t size)
 {
   unsigned long ret = 0;
-  // if(test_public_range(PADDR_TO_PFN((uintptr_t)pte_addr),1) < 0){
-  //   sbi_bug("M mode: sm_set_pte: test_public_range is failed\r\n");
-  //   return -1;
-  // }
   int pte_num = 1;
+  
   check_huge_pt((uintptr_t)pte_addr, PTE_TO_PA(pte_src), pte_src, &pte_num);
   spin_lock(&mbitmap_lock);
   switch(flag)
   {
     case SBI_SET_PTE_ONE:
-      if((!IS_PGD(pte_src)) && PTE_VALID(pte_src))
-      {
-        uintptr_t pfn = PTE_TO_PFN(pte_src);
-        if (check_pt_location((uintptr_t)pte_addr, PTE_TO_PA(pte_src), pte_src) < 0)
-        {
-          ret = -1;
-          sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: check_pt_location is failed \r\n");
-          goto free_mbitmap_lock;
-          break;
-        }
-        if(test_public_range(pfn, pte_num) < 0)
-        {
-          ret = -1;
-          sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_ONE: test_public_range is failed \r\n");
-          goto free_mbitmap_lock;
-        }
-      }
-      set_single_pte(pte_addr, pte_src);
+      if ((ret = set_check_single_pte(pte_addr, pte_src, pte_num)) != 0)
+        goto free_mbitmap_lock;
       break;
     case SBI_PTE_MEMSET:
-      if((!IS_PGD(pte_src)) && PTE_VALID(pte_src))
+      if (unlikely(pte_src != 0 ))
       {
-        if(test_public_range(PTE_TO_PFN(pte_src),pte_num) < 0)
-        {
-          ret = -1;
-          sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMSET: test_public_range is failed \r\n");
-          goto free_mbitmap_lock;
-        }
+        ret = -1;
+        sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMSET: pte src value is not zero \n");
+        goto free_mbitmap_lock;
       }
-      //sbi_memset(pte_addr, pte_src, size);
       uintptr_t i1 = 0;
       for(i1 = 0; i1 < size/sizeof(uintptr_t); ++i1, ++pte_addr)
       {
@@ -599,7 +603,7 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
       if(size % 8)
       {
         ret = -1;
-        sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMCPY: size align is failed \r\n");
+        sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMCPY: size align is failed \n");
         goto free_mbitmap_lock;
       }
       unsigned long i=0, pagenum=size>>3;
@@ -611,7 +615,7 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
           if(test_public_range(PTE_TO_PFN(pte),pte_num) < 0)
           {
             ret =-1;
-            sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMCPY: test_public_range is failed \r\n");
+            sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMCPY: test_public_range is failed \n");
             goto free_mbitmap_lock;
           }
         }
@@ -620,9 +624,54 @@ uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uin
       for(i = 0; i< pagenum; ++i, ++pte_addr)
       {
         uintptr_t pte = *((uintptr_t*)pte_src + i);
+        if (unlikely(check_pt_location((uintptr_t)pte_addr, PTE_TO_PA(pte), pte) < 0))
+        {
+          ret = -1;
+          sbi_bug("M mode: sm_set_pte: SBI_PTE_MEMCPY: check_pt_location is failed \n");
+        }
         set_single_pte(pte_addr, pte);
       }
       break;
+    case SBI_SET_PTE_BATCH_ZERO:
+    {
+      uintptr_t index = pte_src;
+      // FIXME: 
+      // Check whether pt_area_batch is a legal pointer
+      struct pt_area_batch_t * pt_area_batch = (struct pt_area_batch_t *)pte_addr;
+      uintptr_t i, single_pte_addr;
+
+      for (i = 0; i < index; i++)
+      {
+        for (single_pte_addr = pt_area_batch[i].ptep_base; single_pte_addr < pt_area_batch[i].ptep_base+pt_area_batch[i].entity.ptep_size; single_pte_addr+=8)
+        {
+          if (unlikely((ret = set_check_single_pte((uintptr_t *)single_pte_addr, 0, pte_num)) != 0))
+          {
+            sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_BATCH_ZERO: check pte entry is failed\n");
+            goto free_mbitmap_lock;
+          }
+        }
+      }
+      break;
+    }
+    case SBI_SET_PTE_BATCH_SET:
+    {
+      uintptr_t index = pte_src;
+      // FIXME: 
+      // Check whether pt_area_batch is a legal pointer
+      struct pt_area_batch_t * pt_area_batch = (struct pt_area_batch_t *)pte_addr;
+      uintptr_t i, single_pte_addr;
+
+      for (i = 0; i < index; i++)
+      {
+        single_pte_addr = pt_area_batch[i].ptep_base;
+        if (unlikely((ret = set_check_single_pte((uintptr_t *)single_pte_addr, pt_area_batch[i].entity.ptep_entry, pte_num)) != 0))
+        {
+          sbi_bug("M mode: sm_set_pte: SBI_SET_PTE_BATCH_SET: check pte entry is failed\n");
+          goto free_mbitmap_lock;
+        }
+      }
+      break;
+    }
     default:
       ret = -1;
       break;
