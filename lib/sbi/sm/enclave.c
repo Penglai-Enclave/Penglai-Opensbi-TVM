@@ -13,6 +13,7 @@
 #include "sm/platform/pt_area/platform_thread.h"
 #include "sm/ipi.h"
 #include "sm/attest.h"
+#include "sm/key.h"
 #include <sbi/sbi_tlb.h>
 
 int eapp_args = 0;
@@ -2309,6 +2310,57 @@ out:
 }
 
 /**
+ * \brief Derive enclave specific key.
+ *
+ * \param key_type The key type.
+ * \param key The received key pointer.
+ * \param key_size The received key size.
+ */
+uintptr_t derive_key(uintptr_t key_type, uintptr_t *key, uintptr_t key_size)
+{
+  uintptr_t ret = 0;
+  struct enclave_t *enclave = NULL;
+  int eid = 0; 
+  if(check_in_enclave_world() < 0)
+  {
+    sbi_bug("M mode: derive_key: CPU is not in the enclave mode\n");
+    return -1UL;
+  }
+
+  acquire_enclave_metadata_lock();
+
+  eid = get_curr_enclave_id();
+  enclave = __get_enclave(eid);
+  if(!enclave|| check_enclave_authentication(enclave)!=0 || enclave->state != RUNNING)
+  {
+    ret = -1UL;
+    sbi_bug("M mode: derive_key: enclave%d can not be accessed!\n", eid);
+    goto out;
+  }
+
+  // Get the physical address of the attestaion report
+  char* u_key = va_to_pa((uintptr_t*)(enclave->root_page_table), (void*)key);
+  if(!u_key)
+  {
+    sbi_bug("M mode: derive_key: key pointer is invalid \n");
+    ret = -1UL;
+    goto out;
+  }
+
+  char m_key[KEY_SIZE_BYTES];
+
+  if (m_derive_key((int)key_type, enclave->hash, (int)key_size, m_key) != 0)
+  {
+    sbi_bug("M mode: derive_key: derive key from the root key is failed\n");
+    ret = -1;
+  }
+
+out:
+  release_enclave_metadata_lock();
+  return ret;
+}
+
+/**
  * \brief Exit from the enclave.
  * 
  * \param regs The host register context.
@@ -2381,11 +2433,11 @@ uintptr_t enclave_mmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size)
   int eid = get_curr_enclave_id();
   struct enclave_t* enclave = NULL;
   if(check_in_enclave_world() < 0)
-    return -1;
+    return SYS_NULL;
   if(vaddr)
   {
     if(vaddr & (RISCV_PGSIZE-1) || size < RISCV_PGSIZE || size & (RISCV_PGSIZE-1))
-      return -1;
+      return SYS_NULL;
   }
 
   acquire_enclave_metadata_lock();
@@ -2393,7 +2445,7 @@ uintptr_t enclave_mmap(uintptr_t* regs, uintptr_t vaddr, uintptr_t size)
   enclave = __get_enclave(eid);
   if(!enclave || check_enclave_authentication(enclave)!=0 || enclave->state != RUNNING)
   {
-    ret = -1UL;
+    ret = SYS_NULL;
     goto out;
   }
 
@@ -2624,6 +2676,7 @@ uintptr_t call_enclave(uintptr_t* regs, unsigned int callee_eid, uintptr_t arg)
   if(!callee_enclave || callee_enclave->type != SERVER_ENCLAVE || callee_enclave->caller_eid != -1 || callee_enclave->state != RUNNABLE)
   {
     sbi_bug("M mode: call_enclave: enclave%d can not be accessed!\n", callee_eid);
+    sbi_bug("M mode: call_enclave: callee_enclave %lx, type %d state %d\n", (unsigned long) callee_enclave, callee_enclave->type, callee_enclave->state);
     retval = -1UL;
     goto out;
   }
@@ -3155,6 +3208,40 @@ uintptr_t enclave_return_relay_page(uintptr_t *regs)
   swap_from_enclave_to_host(regs, enclave);
   enclave->state = OCALLING;
   ret = ENCLAVE_OCALL;
+
+out:
+  release_enclave_metadata_lock();
+  return ret;
+}
+
+/**
+ * \brief Generate a random value for enclave.
+ * 
+ * \param regs The enclave register context
+ * \param random_buff Receiving buff for the random value
+ * \param size The size of random value 
+ */
+uintptr_t enclave_getrandom(uintptr_t *regs, uintptr_t random_buff, uintptr_t size)
+{
+  uintptr_t ret = 0;
+  int eid = get_curr_enclave_id();
+  struct enclave_t *enclave = NULL;
+  uintptr_t * p_random_buff = 0;
+
+  if(check_in_enclave_world() < 0){
+    return -1;
+  }
+
+  acquire_enclave_metadata_lock();
+  enclave = __get_enclave(eid);
+  if(!enclave || check_enclave_authentication(enclave) != 0|| enclave->state != RUNNING){
+    ret = -1;
+    sbi_debug("[ERROR] M mode: enclave_getrandom: check enclave is failed\r\n");
+    goto out;
+  }
+
+  p_random_buff = va_to_pa((uintptr_t*)(enclave->root_page_table), (void*)random_buff);
+  ret = platform_getrand((char *) p_random_buff, size);
 
 out:
   release_enclave_metadata_lock();
