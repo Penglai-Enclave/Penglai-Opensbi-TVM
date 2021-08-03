@@ -9,6 +9,12 @@
 #include "sm/server_enclave.h"
 #include "sm/platform/pt_area/platform.h"
 
+//get the ppn from an pte entry
+static uintptr_t pte_ppn(pte_t pte)
+{
+  return pte >> PTE_PPN_SHIFT;
+}
+
 /**
  * Init secure monitor by invoking platform_init
  */
@@ -683,6 +689,53 @@ free_mbitmap_lock:
 }
 
 /**
+ * \brief Check the pt_area mapping when install the enclave driver
+ * Ensure the page table is legitimate befor GPT is enable
+ * This check can be done in the hardware (extend in MMU).
+ * 
+ * \param pt_area_pgd_base The base address of pgd_sub_area.
+ * \param pt_area_pmd_base The base address of pmd_sub_area.
+ * \param pt_area_pte_base The base address of pte_sub_area.
+ * \param pt_area_end The base address of pte_sub_area.
+ */
+int check_pt_area_mapping(uintptr_t pt_area_pgd_base, uintptr_t pt_area_pmd_base, 
+    uintptr_t pt_area_pte_base, uintptr_t pt_area_end)
+{
+  int ret = 0;
+  
+  pte_t *pte = (uintptr_t*)(pt_area_pgd_base);
+  pte_t *pte_end = (uintptr_t*)(pt_area_pmd_base);
+
+  while(pte < pte_end)
+  {
+    if(!IS_PGD(*pte) && PTE_VALID(*pte))
+    {
+      pte_t* next_page_table;
+      next_page_table = (pte_t*) (pte_ppn(*pte) << RISCV_PGSHIFT);
+
+      if (((uintptr_t)next_page_table<pt_area_pmd_base) || ((uintptr_t)next_page_table>pt_area_pte_base))
+      {
+        sbi_bug("M mode: check_pt_area_mapping: next_page_table %lx, pt_area_pmd_base %lx pt_area_pte_base %lx\n", 
+                  (uintptr_t)next_page_table, pt_area_pmd_base, pt_area_pte_base);
+        return -1;
+      }
+           
+      ret = __check_mapping(next_page_table, pt_area_pgd_base, pt_area_pmd_base, pt_area_pte_base, 
+                          pt_area_end, 1);
+      if (ret < 0)
+      {
+        sbi_bug("M mode: check_pt_area_mapping: illegal pt_area mapping\n");
+        return -1;
+      }
+    }
+    pte += 1;
+  }
+
+  return ret;
+}
+
+
+/**
  * \brief SM_INIT: This is an SBI call provided by monitor
  *  The Host OS can invoke the call to init the enclave enviroment, with two regions: [pt_area_base, pt_area_base + area_size]
  *  and [mbitmap_base + mbitmap_size].
@@ -771,6 +824,11 @@ uintptr_t sm_pt_area_separation(uintptr_t tmp_pgd_order, uintptr_t tmp_pmd_order
   /* Enable TVM here */
   mstatus = INSERT_FIELD(mstatus, MSTATUS_TVM, 1);
   csr_write(CSR_MSTATUS, mstatus);
+  if (check_pt_area_mapping(pt_area_base, pt_area_pmd_base, pt_area_pte_base, pt_area_end))
+  {
+    sbi_bug("M MODE: sm_pt_area_separation: check pt_area mapping is failed\n");
+    return -1UL;
+  }
   set_tvm_and_sync();
   return 0;
 }

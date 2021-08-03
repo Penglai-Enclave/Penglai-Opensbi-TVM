@@ -82,6 +82,8 @@ int unmap(uintptr_t* root_page_table, uintptr_t vaddr, uintptr_t size);
 // Debug function:
 uintptr_t *pte_walk(uintptr_t *root_page_table, uintptr_t va);
 
+int __check_mapping(pte_t* page_table, uintptr_t pt_area_pgd_base, uintptr_t pt_area_pmd_base, uintptr_t pt_area_pte_base, 
+uintptr_t pt_area_end, int level);
 int __copy_page_table(pte_t* page_table, struct page_t ** free_page, int level, pte_t* copy_page);
 int map_empty_page(uintptr_t* root_page_table, struct page_t **free_pages, uintptr_t vaddr, uintptr_t size);
 
