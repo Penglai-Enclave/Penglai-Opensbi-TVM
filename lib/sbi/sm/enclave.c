@@ -2675,7 +2675,7 @@ uintptr_t call_enclave(uintptr_t* regs, unsigned int callee_eid, uintptr_t arg)
   callee_enclave = __get_enclave(callee_eid);
   if(!callee_enclave || callee_enclave->type != SERVER_ENCLAVE || callee_enclave->caller_eid != -1 || callee_enclave->state != RUNNABLE)
   {
-    sbi_bug("M mode: call_enclave: enclave%d can not be accessed!\n", callee_eid);
+    sbi_bug("M mode: call_enclave: enclave%d can not be accessed!, caller_eid: %d\n", callee_eid, callee_enclave->caller_eid);
     sbi_bug("M mode: call_enclave: callee_enclave %lx, type %d state %d\n", (unsigned long) callee_enclave, callee_enclave->type, callee_enclave->state);
     retval = -1UL;
     goto out;
