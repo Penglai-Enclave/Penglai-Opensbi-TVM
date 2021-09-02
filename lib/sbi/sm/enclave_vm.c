@@ -572,6 +572,41 @@ int __copy_page_table(pte_t* page_table, struct page_t ** free_page, int level, 
 }
 
 /**
+ * \brief Check each level of page table entries are in the legitimate sub-area.
+ * This check can be done in the hardware (extend in MMU).
+ * 
+ * \param page_table The page table entry.
+ * \param pt_area_pmd_base The base address of pmd_sub_area.
+ * \param pt_area_pte_base The base address of pte_sub_area.
+ * \param pt_area_end The base address of pte_sub_area.
+ */
+int __check_mapping(pte_t* page_table, uintptr_t pt_area_pgd_base, uintptr_t pt_area_pmd_base, uintptr_t pt_area_pte_base, 
+uintptr_t pt_area_end, int level)
+{
+  pte_t* t = page_table;
+  int i;
+  if(level >= 0)
+  {
+    for (i = 0; i < (1<<RISCV_PGLEVEL_BITS); i++) 
+    {
+      if((t[i] & PTE_V) && !(t[i] & PTE_R) && !(t[i] & PTE_W) && !(t[i] & PTE_X))
+      {
+        pte_t* next_page_table;
+        next_page_table = (pte_t*) (pte_ppn(t[i]) << RISCV_PGSHIFT);
+
+        if (((uintptr_t)next_page_table<pt_area_pte_base) || ((uintptr_t)next_page_table>pt_area_end))
+        {
+          sbi_bug("M mode: __check_mapping: next_page_table %lx, pt_area_pte_base %lx pt_area_end %lx\n", 
+                    (uintptr_t)next_page_table, pt_area_pte_base, pt_area_end);
+          return -1;
+        }
+      }
+    }
+  }
+  return 0;
+}
+
+/**
  * \brief Map an empty page table.
  * 
  * \param root_page_table The enclave root page table. 
