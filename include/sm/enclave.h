@@ -53,6 +53,7 @@ struct link_mem_t
   struct link_mem_t* next_link_mem;    
 };
 
+
 enum key_type_t {
     ENCLAVE_KEY = 0,
     STORAGE_KEY,

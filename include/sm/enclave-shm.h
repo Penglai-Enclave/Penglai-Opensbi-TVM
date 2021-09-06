@@ -23,7 +23,7 @@ struct sbi_shm_infop
     // uintptr_t shm_size;
     uintptr_t shm_flags;
     uintptr_t shm_refcount;
-    spinlock_t sbi_shm_enclaves_lock;
+    // spinlock_t sbi_shm_enclaves_lock;
     // struct sbi_shm_enclaves shared_enclaves; // linked enclave ids of enclaves that share this memory region.
     struct pm_area_struct pma;
     sbi_shm_meta_state state;

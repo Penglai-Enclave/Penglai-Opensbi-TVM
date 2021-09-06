@@ -15,6 +15,7 @@
 #include "sm/attest.h"
 #include "sm/key.h"
 #include <sbi/sbi_tlb.h>
+#include <sm/enclave_error.h>
 
 int eapp_args = 0;
 extern int CPU_IN_CRITICAL;
@@ -2673,14 +2674,19 @@ uintptr_t call_enclave(uintptr_t* regs, unsigned int callee_eid, uintptr_t arg)
     goto out;
   }
   callee_enclave = __get_enclave(callee_eid);
-  if(!callee_enclave || callee_enclave->type != SERVER_ENCLAVE || callee_enclave->caller_eid != -1 || callee_enclave->state != RUNNABLE)
+  if(!callee_enclave || callee_enclave->type != SERVER_ENCLAVE)
   {
-    sbi_bug("M mode: call_enclave: enclave%d can not be accessed!, caller_eid: %d\n", callee_eid, callee_enclave->caller_eid);
+    sbi_bug("M mode: call_enclave: enclave%d can not be accessed!\n", callee_eid);
     sbi_bug("M mode: call_enclave: callee_enclave %lx, type %d state %d\n", (unsigned long) callee_enclave, callee_enclave->type, callee_enclave->state);
     retval = -1UL;
     goto out;
   }
 
+  if(callee_enclave->caller_eid != -1 || callee_enclave->state != RUNNABLE)
+  {
+      retval = -ESERVERBUSY;
+      goto out;
+  }
   struct call_enclave_arg_t call_arg;
   struct call_enclave_arg_t* call_arg0 = va_to_pa((uintptr_t*)(caller_enclave->root_page_table), (void*)arg);
   if(!call_arg0)

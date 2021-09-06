@@ -107,10 +107,16 @@ static void free_shm_info(struct sbi_shm_infop* shm)
 				pos = pos->next_link_mem;
 			}
 			global_shm_metadata_current = pos;
-			global_current_index = pos->slab_num - 1;
+			global_current_index = pos->slab_num;
+			pos = pos->next_link_mem;
+			src = (struct sbi_shm_infop*)(pos->addr);
 		}
 	}
-	src = (struct sbi_shm_infop*)(pos->addr) + global_current_index;
+	else
+	{
+		pos = global_shm_metadata_current;
+		src = (struct sbi_shm_infop*)(pos->addr) + global_current_index;
+	}
 	sbi_memcpy(shm, src, sizeof(struct sbi_shm_infop));
 	src->state = SHM_META_INVALID;
 	return;
@@ -167,6 +173,7 @@ uintptr_t enclave_shmget(uintptr_t *regs, uintptr_t shm_key, uintptr_t size,
 		if(enclave_shm_init() != 0)
 		{
 		   release_enclave_metadata_lock();
+		   sbi_printf("[opensbi] shared memory module init failed\n");
            return -1UL;
 		}
 		shm_init = 1;
@@ -228,10 +235,10 @@ uintptr_t shmget_after_resume(struct enclave_t *enclave, uintptr_t paddr,
 		retval = -1UL;
 		return retval;
 	}
+	// initialize shared memory metadata region for enclaves, which is the first page of shared memory.
 	struct sbi_shm_metadata *meta = (struct sbi_shm_metadata *)(paddr);
 	struct sbi_shm_infop *shm     = NULL;
 	unsigned long i		      = 0;
-	//init shared memory meta for enclaves
 	for (i = 0; i < RISCV_PGSIZE / sizeof(struct sbi_shm_metadata); ++i) 
 	{
 		meta->eid = -1;
