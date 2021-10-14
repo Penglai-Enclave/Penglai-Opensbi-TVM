@@ -2,6 +2,7 @@
 #include "sm/gm/sm3.h"
 #include "sm/gm/sm2.h"
 #include "sbi/riscv_encoding.h"
+#include "sbi/sbi_string.h"
 
 static int hash_enclave_mem(struct sm3_context *hash_ctx, pte_t* ptes, int level, uintptr_t va, int hash_va)
 {
@@ -106,6 +107,8 @@ void update_enclave_hash(char *output, void* hash, uintptr_t nonce_arg)
   sm3_update(&hash_ctx, (unsigned char*)(&nonce), sizeof(uintptr_t));
 
   sm3_final(&hash_ctx, hash);
+
+  sbi_memcpy(output, hash, HASH_SIZE);
 }
 
 void sign_enclave(void* signature_arg, void* hash)
