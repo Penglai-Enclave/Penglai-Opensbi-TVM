@@ -1,3 +1,7 @@
+[![Build](https://github.com/Penglai-Enclave/Penglai-Opensbi-TVM/actions/workflows/build.yml/badge.svg)](https://github.com/Penglai-Enclave/Penglai-Opensbi-TVM/actions/workflows/build.yml)
+[![CI](https://github.com/Penglai-Enclave/Penglai-Opensbi-TVM/actions/workflows/ci.yml/badge.svg)](https://github.com/Penglai-Enclave/Penglai-Opensbi-TVM/actions/workflows/ci.yml)
+[![License: Mulan](https://img.shields.io/badge/license-Mulan-brightgreen.svg)](https://license.coscl.org.cn/MulanPSL)
+
 RISC-V Open Source Supervisor Binary Interface (OpenSBI)
 ========================================================
 
