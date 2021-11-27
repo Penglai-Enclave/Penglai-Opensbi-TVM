@@ -37,7 +37,6 @@ extern struct sbi_ecall_extension ecall_rfence;
 extern struct sbi_ecall_extension ecall_ipi;
 extern struct sbi_ecall_extension ecall_vendor;
 extern struct sbi_ecall_extension ecall_hsm;
-extern struct sbi_ecall_extension ecall_penglai;
 
 u16 sbi_ecall_version_major(void);
 
@@ -52,8 +51,6 @@ struct sbi_ecall_extension *sbi_ecall_find_extension(unsigned long extid);
 int sbi_ecall_register_extension(struct sbi_ecall_extension *ext);
 
 void sbi_ecall_unregister_extension(struct sbi_ecall_extension *ext);
-
-int enclave_call_trap(struct sbi_trap_regs* regs);
 
 int sbi_ecall_handler(struct sbi_trap_regs *regs);
 

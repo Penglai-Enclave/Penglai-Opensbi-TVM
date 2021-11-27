@@ -19,7 +19,6 @@
 #include <sbi/sbi_math.h>
 #include <sbi/sbi_platform.h>
 #include <sbi/sbi_string.h>
-#include <sm/sm.h>
 
 extern void __sbi_expected_trap(void);
 extern void __sbi_expected_trap_hext(void);
@@ -441,9 +440,7 @@ void __attribute__((noreturn)) sbi_hart_hang(void)
 		wfi();
 	__builtin_unreachable();
 }
-/*
- * Switch the m mode into the s mode
- */
+
 void __attribute__((noreturn))
 sbi_hart_switch_mode(unsigned long arg0, unsigned long arg1,
 		     unsigned long next_addr, unsigned long next_mode,
@@ -503,9 +500,7 @@ sbi_hart_switch_mode(unsigned long arg0, unsigned long arg1,
 		csr_write(CSR_USCRATCH, 0);
 		csr_write(CSR_UIE, 0);
 	}
-	//TODO:
-	//Set the pmp register to protect the monitor itself 
-	sm_init();
+
 	register unsigned long a0 asm("a0") = arg0;
 	register unsigned long a1 asm("a1") = arg1;
 	__asm__ __volatile__("mret" : : "r"(a0), "r"(a1));

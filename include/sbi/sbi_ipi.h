@@ -11,7 +11,6 @@
 #define __SBI_IPI_H__
 
 #include <sbi/sbi_types.h>
-#include <sbi/sbi_trap.h>
 
 /* clang-format off */
 
@@ -48,13 +47,6 @@ struct sbi_ipi_event_ops {
 	 * remote HART after IPI is triggered.
 	 */
 	void (* process)(struct sbi_scratch *scratch);
-
-	/**
-	 * Process callback to handle IPI event in the enclave
-	 * Note: This is a mandatory callback and it is called on the
-	 * remote HART after IPI is triggered.
-	 */
-	void (* e_process)(struct sbi_scratch *scratch, struct sbi_trap_regs* regs);
 };
 
 int sbi_ipi_send_many(ulong hmask, ulong hbase, u32 event, void *data);
@@ -71,12 +63,8 @@ int sbi_ipi_send_halt(ulong hmask, ulong hbase);
 
 void sbi_ipi_process(void);
 
-void sbi_ipi_process_in_enclave(struct sbi_trap_regs* regs);
-
 int sbi_ipi_init(struct sbi_scratch *scratch, bool cold_boot);
 
 void sbi_ipi_exit(struct sbi_scratch *scratch);
-
-// const char *sbi_return_ipi_event_name();
 
 #endif

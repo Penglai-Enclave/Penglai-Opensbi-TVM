@@ -18,13 +18,8 @@
 #include <sbi/sbi_misaligned_ldst.h>
 #include <sbi/sbi_timer.h>
 #include <sbi/sbi_trap.h>
-#include <sm/sm.h>
-#include <sm/enclave.h>
-#define read_csr(reg) ({ unsigned long __tmp; \
-  asm volatile ("csrr %0, " #reg : "=r"(__tmp)); \
-  __tmp; })
 
-static void sbi_trap_error(const char *msg, int rc,
+static void __noreturn sbi_trap_error(const char *msg, int rc,
 				      ulong mcause, ulong mtval, ulong mtval2,
 				      ulong mtinst, struct sbi_trap_regs *regs)
 {
@@ -73,16 +68,7 @@ static void sbi_trap_error(const char *msg, int rc,
 	sbi_printf("%s: hart%d: %s=0x%" PRILX "\n", __func__, hartid, "t6",
 		   regs->t6);
 
-	if(check_in_enclave_world() == 0)
-	{
-		destroy_enclave((uintptr_t *)regs, get_curr_enclave_id());
-		regs->mepc = csr_read(CSR_MEPC);
-		regs->mstatus = csr_read(CSR_MSTATUS);
-		regs->a0 = -1; 
-		return;
-	}
 	sbi_hart_hang();
-	return;
 }
 
 /**
@@ -96,10 +82,6 @@ static void sbi_trap_error(const char *msg, int rc,
 int sbi_trap_redirect(struct sbi_trap_regs *regs,
 		      struct sbi_trap_info *trap)
 {
-	sbi_printf("SBI: sbi_trap_redirect casuse %lx\n", trap->cause);
-	return 1;
-
-
 	ulong hstatus, vsstatus, prev_mode;
 #if __riscv_xlen == 32
 	bool prev_virt = (regs->mstatusH & MSTATUSH_MPV) ? TRUE : FALSE;
@@ -211,18 +193,6 @@ int sbi_trap_redirect(struct sbi_trap_regs *regs,
 	return 0;
 }
 
-void handle_timer_irq(struct sbi_trap_regs *regs, uintptr_t mcause, uintptr_t mepc)
-{
-	
-	if(check_in_enclave_world() < 0)
-	{
-		csr_read_clear(CSR_MIE, MIP_MTIP);
-		csr_read_set(CSR_MIP, MIP_STIP);
-		return;
-	}
-	sm_do_timer_irq((uintptr_t *)regs, mcause, mepc);
-}
-
 /**
  * Handle trap/interrupt
  *
@@ -244,10 +214,9 @@ void sbi_trap_handler(struct sbi_trap_regs *regs)
 	int rc = SBI_ENOTSUPP;
 	const char *msg = "trap handler failed";
 	ulong mcause = csr_read(CSR_MCAUSE);
-	ulong mepc = csr_read(CSR_MEPC);
 	ulong mtval = csr_read(CSR_MTVAL), mtval2 = 0, mtinst = 0;
 	struct sbi_trap_info trap;
-	
+
 	if (misa_extension('H')) {
 		mtval2 = csr_read(CSR_MTVAL2);
 		mtinst = csr_read(CSR_MTINST);
@@ -257,29 +226,10 @@ void sbi_trap_handler(struct sbi_trap_regs *regs)
 		mcause &= ~(1UL << (__riscv_xlen - 1));
 		switch (mcause) {
 		case IRQ_M_TIMER:
-			if (check_in_enclave_world() == 0)
-			{
-				handle_timer_irq(regs, mcause, mepc);
-				regs->mepc = csr_read(CSR_MEPC);
-				regs->mstatus = csr_read(CSR_MSTATUS);
-			}
-			else
-				sbi_timer_process();
+			sbi_timer_process();
 			break;
 		case IRQ_M_SOFT:
-			// if((check_in_enclave_world() == 0) || 
-				// (!sbi_strcmp(sbi_return_ipi_event_name(),"IPI_DESTROY_ENCLAVE")))
-			if((check_in_enclave_world() == 0))
-			{
-				// sbi_debug("send ipi into enclave %s\n", sbi_return_ipi_event_name());
-				sbi_ipi_process_in_enclave(regs);
-				regs->mepc = csr_read(CSR_MEPC);
-				regs->mstatus = csr_read(CSR_MSTATUS);
-			}
-			else
-			{
-				sbi_ipi_process();
-			}
+			sbi_ipi_process();
 			break;
 		default:
 			msg = "unhandled external interrupt";
@@ -301,17 +251,10 @@ void sbi_trap_handler(struct sbi_trap_regs *regs)
 		rc  = sbi_misaligned_store_handler(mtval, mtval2, mtinst, regs);
 		msg = "misaligned store handler failed";
 		break;
-	case CAUSE_USER_ECALL:
-		rc  = enclave_call_trap(regs);
-		msg = "ecall handler failed";
-		break;
 	case CAUSE_SUPERVISOR_ECALL:
-		rc  = 1;
-		msg = "supervisor ecall trap failed";
-		break;
 	case CAUSE_HYPERVISOR_ECALL:
 		rc  = sbi_ecall_handler(regs);
-		msg = "enclave call trap failed";
+		msg = "ecall handler failed";
 		break;
 	default:
 		/* If the trap came from S or U mode, redirect it there */
@@ -323,7 +266,7 @@ void sbi_trap_handler(struct sbi_trap_regs *regs)
 		rc = sbi_trap_redirect(regs, &trap);
 		break;
 	};
-	
+
 trap_error:
 	if (rc)
 		sbi_trap_error(msg, rc, mcause, mtval, mtval2, mtinst, regs);

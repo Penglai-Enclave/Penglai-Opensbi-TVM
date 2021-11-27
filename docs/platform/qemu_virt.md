@@ -60,7 +60,7 @@ Note: We assume that the Linux kernel is compiled using
 
 Build:
 ```
-make PLATFORM=generic FW_PAYLOAD_PATH=../linux-5.10.2/arch/riscv/boot/Image
+make PLATFORM=generic FW_PAYLOAD_PATH=<linux_build_directory>/arch/riscv/boot/Image
 ```
 
 Run:

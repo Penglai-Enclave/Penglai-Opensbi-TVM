@@ -36,6 +36,4 @@ struct sbi_scratch;
 
 int sbi_console_init(struct sbi_scratch *scratch);
 
-#define sbi_bug(fmt, ...) sbi_printf("[ERROR] "fmt, ##__VA_ARGS__)
-#define sbi_debug(fmt, ...) sbi_printf("[DEBUG] "fmt, ##__VA_ARGS__)
 #endif

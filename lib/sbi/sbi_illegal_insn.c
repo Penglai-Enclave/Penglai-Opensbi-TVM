@@ -15,7 +15,6 @@
 #include <sbi/sbi_illegal_insn.h>
 #include <sbi/sbi_trap.h>
 #include <sbi/sbi_unpriv.h>
-#include <sbi/sbi_console.h>
 
 typedef int (*illegal_insn_func)(ulong insn, struct sbi_trap_regs *regs);
 
@@ -115,68 +114,9 @@ static illegal_insn_func illegal_insn_table[32] = {
 	truly_illegal_insn  /* 31 */
 };
 
-
-extern uintptr_t pt_area_base;
-extern uintptr_t pt_area_size;
-extern uintptr_t mbitmap_base;
-extern uintptr_t mbitmap_size;
-extern uintptr_t pgd_order;
-extern uintptr_t pmd_order;
-
 int sbi_illegal_insn_handler(ulong insn, struct sbi_trap_regs *regs)
 {
 	struct sbi_trap_info uptrap;
-	struct sbi_trap_info uptrap2;
-	ulong inst;
-	if (insn == 0)
-		inst = sbi_get_insn(regs->mepc, &uptrap2);
-	else
-		inst = insn;
-	
-	// Emulate the TVM
-	unsigned long mepc = regs->mepc;
-	/* Case1: write sptbr trapped by TVM */
-	if ((((inst>>20) & 0xfff) == 0x180)
-		&&((inst & 0x7f) == 0b1110011)
-		&& (((inst>>12) & 0x3) == 0b001))
-	{
-		// printm("here0 %d\r\n",((inst>>15) & 0x1f));
-		unsigned long val = *((unsigned long *)regs + ((inst>>15) & 0x1f));
-		unsigned long pa = (val & 0x3fffff)<<12;
-		bool enable_mmu = ((val >> 60) == 0x8);
-		if((pt_area_base < pa) && ((pt_area_base + (1<<pgd_order)*4096) > pa) && enable_mmu)
-		{
-			asm volatile ("csrrw x0, sptbr, %0":: "rK"(val));
-			csr_write(CSR_MEPC, mepc + 4);
-			regs->mepc = csr_read(CSR_MEPC);
-			return 0 ;
-		}
-	}
-	/* Case2: read sptbr trapped by TVM */
-	if((((inst>>20) & 0xfff) == 0x180)
-	&&((inst & 0x7f) == 0b1110011)
-	&& (((inst>>12) & 0x3) == 0b010))
-	{
-		// printm("here3 %d\r\n",((inst>>7) & 0x1f));
-		int idx = ((inst>>7) & 0x1f);
-		unsigned long __tmp;
-		asm volatile ("csrrs %0, sptbr, x0":"=r"(__tmp));
-		csr_write(CSR_MEPC, mepc + 4);
-		*((unsigned long *)regs + idx) = __tmp;
-		regs->mepc = csr_read(CSR_MEPC);
-		return 0 ;
-	}
-	/* Case3: sfence.vma trapped by TVM */
-	if((((inst>>25) & 0x7f) == 0b0001001)
-	&&((inst & 0x7fff) == 0b1110011))
-	{
-		// printm("here5 %d\r\n",((inst>>7) & 0x1f));
-		asm volatile ("sfence.vma");
-		csr_write(CSR_MEPC, mepc + 4);
-		regs->mepc = csr_read(CSR_MEPC);
-		return 0 ;
-	}
-	// End of the TVM trap handler 
 
 	if (unlikely((insn & 3) != 3)) {
 		if (insn == 0) {

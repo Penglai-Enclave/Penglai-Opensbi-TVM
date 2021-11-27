@@ -45,7 +45,6 @@
 #include <sbi/sbi_scratch.h>
 #include <sbi/sbi_trap.h>
 #include <sbi/sbi_version.h>
-#include <sbi/sbi_pmp.h>
 
 /** Possible feature flags of a platform */
 enum sbi_platform_features {
