@@ -1074,13 +1074,17 @@ uintptr_t sm_exit_enclave(uintptr_t* regs, uintptr_t retval)
  * \param arg0 The ocall argument 0.
  * \param arg1 The ocall argument 1.
  */
-uintptr_t sm_enclave_ocall(uintptr_t* regs, uintptr_t ocall_id, uintptr_t arg0, uintptr_t arg1)
+uintptr_t sm_enclave_ocall(uintptr_t* regs, uintptr_t ocall_id, uintptr_t arg0, uintptr_t arg1, uintptr_t arg2)
 {
   uintptr_t ret = 0;
   switch(ocall_id)
   {
     case OCALL_MMAP:
       ret = enclave_mmap(regs, arg0, arg1);
+      if(ret == -1UL && check_in_enclave_world() == 0)
+      {
+        ret = 0;
+      }
       break;
     case OCALL_UNMAP:
       ret = enclave_unmap(regs, arg0, arg1);
@@ -1099,6 +1103,19 @@ uintptr_t sm_enclave_ocall(uintptr_t* regs, uintptr_t ocall_id, uintptr_t arg0, 
       break;
     case OCALL_RETURN_RELAY_PAGE:
       ret = enclave_return_relay_page(regs);
+      break;
+    case OCALL_SHM_GET:
+      ret = enclave_shmget(regs, arg0, arg1, arg2);
+      if(ret == -1UL && check_in_enclave_world() == 0)
+      {
+        ret = 0;
+      }   
+      break;
+    case OCALL_SHM_DETACH:
+      ret = enclave_shmdetach(regs, arg0);
+      break;
+    case OCALL_SHM_DESTROY:
+      ret = enclave_shmdestroy(regs, arg0);
       break;
     case OCALL_GETRANDOM:
       ret = enclave_getrandom(regs, arg0, arg1);

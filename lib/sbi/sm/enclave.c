@@ -15,6 +15,7 @@
 #include "sm/attest.h"
 #include "sm/key.h"
 #include <sbi/sbi_tlb.h>
+#include <sm/enclave_error.h>
 
 int eapp_args = 0;
 extern int CPU_IN_CRITICAL;
@@ -175,7 +176,7 @@ int check_in_enclave_world()
 }
 
 // Invoke the platform-specific authentication
-static int check_enclave_authentication()
+int check_enclave_authentication()
 {
   if(platform_check_enclave_authentication() != 0)
     return -1;
@@ -885,7 +886,7 @@ uintptr_t change_relay_page_ownership(unsigned long relay_page_addr, unsigned lo
  * \param host_regs The host regs ptr.
  * \param enclave The given enclave.
  */
-static int swap_from_host_to_enclave(uintptr_t* host_regs, struct enclave_t* enclave)
+int swap_from_host_to_enclave(uintptr_t* host_regs, struct enclave_t* enclave)
 {
   //grant encalve access to memory
   if(grant_enclave_access(enclave) < 0)
@@ -937,7 +938,7 @@ static int swap_from_host_to_enclave(uintptr_t* host_regs, struct enclave_t* enc
  * \param host_regs The host regs ptr.
  * \param enclave The given enclave.
  */
-static int swap_from_enclave_to_host(uintptr_t* regs, struct enclave_t* enclave)
+int swap_from_enclave_to_host(uintptr_t* regs, struct enclave_t* enclave)
 {
   //retrieve enclave access to memory
   retrieve_enclave_access(enclave);
@@ -1249,7 +1250,7 @@ uintptr_t create_enclave(enclave_create_param_t create_args)
   enclave->free_pages = NULL;
   enclave->free_pages_num = 0;
   free_mem = create_args.paddr + create_args.size - RISCV_PGSIZE;
-
+  enclave->ocalling_shm_key = -1UL;
   // Reserve the first two entries for free memory page
   while(free_mem >= create_args.free_mem)
   {
@@ -2034,6 +2035,9 @@ uintptr_t resume_from_ocall(uintptr_t* regs, unsigned int eid)
       if(retval == -1UL)
         goto out;
       break;
+    case OCALL_SHM_GET:
+      retval = shmget_after_resume(enclave, regs[13], regs[14]);
+      break;
     default:
       retval = 0;
       break;
@@ -2416,6 +2420,7 @@ exit_enclave_out:
   return ret;
 }
 
+
 /**
  * \brief Enclave needs to map a new mmap region, ocall to host to handle it.
  * 
@@ -2669,7 +2674,7 @@ uintptr_t call_enclave(uintptr_t* regs, unsigned int callee_eid, uintptr_t arg)
     goto out;
   }
   callee_enclave = __get_enclave(callee_eid);
-  if(!callee_enclave || callee_enclave->type != SERVER_ENCLAVE || callee_enclave->caller_eid != -1 || callee_enclave->state != RUNNABLE)
+  if(!callee_enclave || callee_enclave->type != SERVER_ENCLAVE)
   {
     sbi_bug("M mode: call_enclave: enclave%d can not be accessed!\n", callee_eid);
     sbi_bug("M mode: call_enclave: callee_enclave %lx, type %d state %d\n", (unsigned long) callee_enclave, callee_enclave->type, callee_enclave->state);
@@ -2677,6 +2682,11 @@ uintptr_t call_enclave(uintptr_t* regs, unsigned int callee_eid, uintptr_t arg)
     goto out;
   }
 
+  if(callee_enclave->caller_eid != -1 || callee_enclave->state != RUNNABLE)
+  {
+      retval = -ESERVERBUSY;
+      goto out;
+  }
   struct call_enclave_arg_t call_arg;
   struct call_enclave_arg_t* call_arg0 = va_to_pa((uintptr_t*)(caller_enclave->root_page_table), (void*)arg);
   if(!call_arg0)

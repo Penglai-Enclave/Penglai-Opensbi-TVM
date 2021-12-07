@@ -40,6 +40,7 @@
   enclave->caller_eid = -1; \
   enclave->top_caller_eid = -1; \
   enclave->cur_callee_eid = -1; \
+  enclave->ocalling_shm_key = 0; \
   sbi_memcpy(enclave->enclave_name, ((struct_type)create_args)->name, NAME_LEN); \
 } while(0)
 
@@ -51,6 +52,7 @@ struct link_mem_t
   char* addr;
   struct link_mem_t* next_link_mem;    
 };
+
 
 enum key_type_t {
     ENCLAVE_KEY = 0,
@@ -139,7 +141,7 @@ struct enclave_t
   unsigned long* ocall_arg1;
   unsigned long* ocall_syscall_num;
   unsigned long* retval;
-
+  unsigned long ocalling_shm_key;
   // enclave thread context
   // TODO: support multiple threads
   struct thread_state_t thread_context;
@@ -249,6 +251,13 @@ uintptr_t enclave_write_sec(uintptr_t *regs, uintptr_t sec);
 uintptr_t enclave_return_relay_page(uintptr_t *regs);
 uintptr_t enclave_getrandom(uintptr_t *regs, uintptr_t random_buff, uintptr_t size);
 uintptr_t do_yield(uintptr_t* regs);
+//TODO: flags in enclave shared memory not being used now.
+uintptr_t enclave_shmget(uintptr_t* regs, uintptr_t key, uintptr_t size, uintptr_t flags);
+uintptr_t shmget_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintptr_t size);
+uintptr_t sm_shm_attatch(uintptr_t* regs, uintptr_t key);
+uintptr_t enclave_shmdetach(uintptr_t* regs, uintptr_t key);
+uintptr_t enclave_shmdestroy(uintptr_t* regs, uintptr_t key);
+uintptr_t sm_shm_stat(uintptr_t* regs, uintptr_t key, uintptr_t shm_desp_user);
 
 // IPI
 uintptr_t ipi_stop_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid);

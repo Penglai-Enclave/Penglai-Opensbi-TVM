@@ -256,7 +256,7 @@ uintptr_t create_server_enclave(enclave_create_param_t create_args)
   enclave->caller_eid = -1;
   enclave->top_caller_eid = -1;
   enclave->cur_callee_eid = -1;
-
+  enclave->ocalling_shm_key = -1UL;
   //traverse vmas
   struct pm_area_struct* pma = (struct pm_area_struct*)(create_args.paddr);
   struct vm_area_struct* vma = (struct vm_area_struct*)(create_args.paddr + sizeof(struct pm_area_struct));
