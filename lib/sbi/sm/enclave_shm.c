@@ -1,6 +1,6 @@
 #include "sbi/sbi_types.h"
 #include "sm/enclave.h"
-#include "sm/enclave-shm.h"
+#include "sm/enclave_shm.h"
 #include "sbi/riscv_locks.h"
 #include "sm/enclave.h"
 #include "sm/sm.h"
