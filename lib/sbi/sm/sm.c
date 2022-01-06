@@ -751,7 +751,7 @@ int check_pt_area_mapping(uintptr_t pt_area_pgd_base, uintptr_t pt_area_pmd_base
  * \param _mbitmap_base The bitmap start address.
  * \param _mbitmap_size The bitmap size.
  */
-uintptr_t sm_sm_init(uintptr_t _pt_area_base, uintptr_t _pt_area_size, uintptr_t _mbitmap_base, uintptr_t _mbitmap_size)
+uintptr_t sm_sm_init(uintptr_t _pt_area_base, uintptr_t _pt_area_size, uintptr_t _mbitmap_base, uintptr_t _mbitmap_size, uintptr_t _module_installed_ptr)
 {
   if(pt_area_base && pt_area_size && mbitmap_base && mbitmap_size)
   {
@@ -804,6 +804,7 @@ uintptr_t sm_sm_init(uintptr_t _pt_area_base, uintptr_t _pt_area_size, uintptr_t
   //pmp 3 is used to protect pt_area
   //this step must be after enabling pt_area and mbitmap
   set_pmp_and_sync(1, pmp_config);
+  *(int *)_module_installed_ptr = 1;
   return 0;
 }
 

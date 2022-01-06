@@ -135,7 +135,7 @@ int check_in_enclave_world();
 
 // Called by host
 // Penglai-specific operations
-uintptr_t sm_sm_init(uintptr_t pt_area_base, uintptr_t pt_area_size, uintptr_t mbitmap_base, uintptr_t mbitmap_size);
+uintptr_t sm_sm_init(uintptr_t pt_area_base, uintptr_t pt_area_size, uintptr_t mbitmap_base, uintptr_t mbitmap_size, uintptr_t _module_installed_ptr);
 uintptr_t sm_pt_area_separation(uintptr_t pgd_order, uintptr_t pmd_order);
 uintptr_t sm_set_pte(uintptr_t flag, uintptr_t* pte_addr, uintptr_t pte_src, uintptr_t size);
 uintptr_t sm_map_pte(uintptr_t* pte, uintptr_t* new_pte_addr);
