@@ -21,14 +21,14 @@ static int sbi_ecall_penglai_handler(unsigned long extid, unsigned long funcid,
 				  unsigned long *args, unsigned long *out_val,
 				  struct sbi_trap_info *out_trap)
 {
-  uintptr_t arg0 = args[10], arg1 = args[11], arg2 = args[12], arg3 = args[13], retval;
+  uintptr_t arg0 = args[10], arg1 = args[11], arg2 = args[12], arg3 = args[13], arg4 = args[14], retval;
   csr_write(CSR_MEPC, args[32] + 4);
   switch (funcid) {
     case SBI_SET_PTE:
       retval = sm_set_pte(arg0, (uintptr_t*)arg1, arg2, arg3);
       break;
     case SBI_SM_INIT:
-      retval = sm_sm_init(arg0, arg1, arg2, arg3);
+      retval = sm_sm_init(arg0, arg1, arg2, arg3, arg4);
       break;
     case SBI_SM_PT_AREA_SEPARATION:
       retval = sm_pt_area_separation(arg0, arg1);
