@@ -1727,6 +1727,8 @@ uintptr_t attest_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t nonce)
   int attestable = 1;
   struct report_t report;
   enclave_state_t old_state = INVALID;
+  unsigned char attest_hash[HASH_SIZE];
+
   acquire_enclave_metadata_lock();
   enclave = __get_enclave(eid);
   if(!enclave || (enclave->state != FRESH && enclave->state != STOPPED)
@@ -1749,13 +1751,13 @@ uintptr_t attest_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t nonce)
   sbi_memcpy((void*)(report.sm.hash), (void*)SM_HASH, HASH_SIZE);
   sbi_memcpy((void*)(report.sm.sm_pub_key), (void*)SM_PUB_KEY, PUBLIC_KEY_SIZE);
   sbi_memcpy((void*)(report.sm.signature), (void*)SM_SIGNATURE, SIGNATURE_SIZE);
+  sbi_memcpy(attest_hash, (char *)enclave->hash, HASH_SIZE);
 
-  update_enclave_hash((char *)(report.enclave.hash), (char *)enclave->hash, nonce);
+  update_enclave_hash((char *)(report.enclave.hash), attest_hash, nonce);
   sign_enclave((void*)(report.enclave.signature), (void*)(report.enclave.hash));
   report.enclave.nonce = nonce;
 
   //printHex((unsigned char*)(report.enclave.signature), 64);
-
   copy_to_host((void*)report_ptr, (void*)(&report), sizeof(struct report_t));
 
   acquire_enclave_metadata_lock();
@@ -1769,6 +1771,8 @@ uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t n
   struct shadow_enclave_t* shadow_enclave = NULL;
   int attestable = 1;
   struct report_t report;
+  unsigned char attest_hash[HASH_SIZE];
+  
   acquire_enclave_metadata_lock();
   shadow_enclave = __get_shadow_enclave(eid);
   release_enclave_metadata_lock();
@@ -1778,7 +1782,10 @@ uintptr_t attest_shadow_enclave(uintptr_t eid, uintptr_t report_ptr, uintptr_t n
     sbi_printf("M mode: attest_enclave: enclave%ld is not attestable\n", eid);
     return -1UL;
   }
-  update_enclave_hash((char *)(report.enclave.hash), (char *)shadow_enclave->hash, nonce);
+
+  sbi_memcpy(attest_hash, (char *)shadow_enclave->hash, HASH_SIZE);
+
+  update_enclave_hash((char *)(report.enclave.hash), attest_hash, nonce);
   sbi_memcpy((void*)(report.dev_pub_key), (void*)DEV_PUB_KEY, PUBLIC_KEY_SIZE);
   sbi_memcpy((void*)(report.sm.hash), (void*)SM_HASH, HASH_SIZE);
   sbi_memcpy((void*)(report.sm.sm_pub_key), (void*)SM_PUB_KEY, PUBLIC_KEY_SIZE);
