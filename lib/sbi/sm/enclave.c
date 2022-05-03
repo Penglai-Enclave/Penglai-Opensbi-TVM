@@ -1523,6 +1523,11 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enc
   csr_read_set(CSR_MIE, MIP_MTIP);
   csr_read_set(CSR_MIE, MIP_MSIP);
 
+  //ROP setting
+  uintptr_t rasp = csr_read(CSR_RASP);
+  csr_write(CSR_RASP,0x1);
+  sbi_printf("rasp %lx\n", rasp);
+
   //set default stack
   regs[2] = ENCLAVE_DEFAULT_STACK_BASE;
 
