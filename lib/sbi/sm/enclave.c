@@ -1528,7 +1528,7 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enc
   csr_read_set(CSR_MIE, MIP_MSIP);
 
   //ROP setting
-  csr_write(CSR_RASP,ENCLAVE_DEFAULT_STACK_BASE);
+  csr_write(CSR_RASP, ENCLAVE_DEFAULT_STACK_BASE);
 
   // set default stack
   // Reserve the first page for rasp
