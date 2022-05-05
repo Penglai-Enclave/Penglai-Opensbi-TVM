@@ -970,6 +970,10 @@ int swap_from_enclave_to_host(uintptr_t* regs, struct enclave_t* enclave)
   mstatus = INSERT_FIELD(mstatus, MSTATUS_MPP, PRV_S);
   csr_write(CSR_MSTATUS, mstatus);
 
+  //restore the rasp for enclave and set csr_rasp to zero
+  enclave->rasp = csr_read(CSR_RASP);
+  csr_write(CSR_RASP, 0);
+
   //mark that cpu is out of enclave world now
   exit_enclave_world();
 
@@ -1524,12 +1528,11 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enc
   csr_read_set(CSR_MIE, MIP_MSIP);
 
   //ROP setting
-  uintptr_t rasp = csr_read(CSR_RASP);
-  csr_write(CSR_RASP,0x1);
-  sbi_printf("rasp %lx\n", rasp);
+  csr_write(CSR_RASP,ENCLAVE_DEFAULT_STACK_BASE);
 
-  //set default stack
-  regs[2] = ENCLAVE_DEFAULT_STACK_BASE;
+  // set default stack
+  // Reserve the first page for rasp
+  regs[2] = ENCLAVE_DEFAULT_STACK_BASE -RISCV_PGSIZE;
 
   //pass parameters
   if(enclave->shm_paddr)
@@ -1879,6 +1882,9 @@ uintptr_t resume_enclave(uintptr_t* regs, unsigned int eid)
     retval = -1UL;
     goto resume_enclave_out;
   }
+
+  //Set the rasp when enclave resumes
+  csr_write(CSR_RASP, (enclave->rasp));
   enclave->state = RUNNING;
   // regs[10] will be set to retval when mcall_trap return, so we have to
   // set retval to be regs[10] here to succuessfully restore context
@@ -2060,6 +2066,9 @@ uintptr_t resume_from_ocall(uintptr_t* regs, unsigned int eid)
     retval = -1UL;
     goto out;
   }
+
+  //Set the rasp when enclave resumes
+  csr_write(CSR_RASP, (enclave->rasp));
   enclave->state = RUNNING;
 
 out:

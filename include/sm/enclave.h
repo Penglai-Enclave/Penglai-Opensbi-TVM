@@ -121,6 +121,9 @@ struct enclave_t
   //root page table register for host
   unsigned long host_ptbr;
 
+  //Return address stack
+  unsigned long rasp;
+
   //entry point of enclave
   unsigned long entry_point;
 
