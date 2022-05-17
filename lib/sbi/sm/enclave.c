@@ -1288,7 +1288,7 @@ uintptr_t create_enclave(enclave_create_param_t create_args)
     enclave->shm_size = 0;
   }
   
-  hash_enclave(enclave, (void*)(enclave->hash), 0);
+  // hash_enclave(enclave, (void*)(enclave->hash), 0);
   copy_word_to_host((unsigned int*)create_args.eid_ptr, enclave->eid);
 
   //Sync and flush the remote TLB entry.
@@ -1524,11 +1524,15 @@ uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enc
   csr_write(CSR_MEPC, (uintptr_t)(enclave->entry_point));
 
   //enable timer interrupt
-  // csr_read_set(CSR_MIE, MIP_MTIP);
-  // csr_read_set(CSR_MIE, MIP_MSIP);
+  csr_read_set(CSR_MIE, MIP_MTIP);
+  csr_read_set(CSR_MIE, MIP_MSIP);
 
   //ROP setting
-  csr_write(CSR_RASP, ENCLAVE_DEFAULT_STACK_BASE);
+  //hackering the shm_size for enabling the rasp defense
+  if ((enclave->shm_size) != 0x2000)
+    csr_write(CSR_RASP, ENCLAVE_DEFAULT_STACK_BASE);
+  else
+    csr_write(CSR_RASP, 0);
 
   // set default stack
   // Reserve the first page for rasp
