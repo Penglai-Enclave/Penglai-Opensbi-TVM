@@ -37,7 +37,7 @@ static int hash_enclave_mem(struct sm3_context *hash_ctx, pte_t* ptes, int level
       {
         sm3_update(hash_ctx, (unsigned char*)&curr_va, sizeof(uintptr_t));
         //update hash with  page attribution
-        sm3_update(hash_ctx, (unsigned char*)pte+7, 1);
+        sm3_update(hash_ctx, (unsigned char*)pte, 1);
         hash_curr_va = 0;
       }
 
