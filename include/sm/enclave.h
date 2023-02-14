@@ -214,8 +214,6 @@ void free_enclave_memory(struct pm_area_struct *pma);
 
 // Called by host
 // Enclave-related operations
-uintptr_t fast_create_enclave(enclave_create_param_t create_args);
-uintptr_t fast_run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enclave_run_param);
 uintptr_t create_enclave(enclave_create_param_t create_args);
 uintptr_t attest_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce);
 uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enclave_run_param);
@@ -271,9 +269,6 @@ uintptr_t enclave_shmdetach(uintptr_t* regs, uintptr_t key);
 uintptr_t enclave_shmdestroy(uintptr_t* regs, uintptr_t key);
 uintptr_t sm_shm_stat(uintptr_t* regs, uintptr_t key, uintptr_t shm_desp_user);
 
-// the return control will jump back to real entry point of the enclave.
-uintptr_t sm_enclave_self_hash_ret(uintptr_t* regs, uintptr_t content_hash1, uintptr_t content_hash2, uintptr_t content_hash3, uintptr_t content_hash4);
-uintptr_t enclave_self_hash_ret(uintptr_t* regs, uintptr_t content_hash1, uintptr_t content_hash2, uintptr_t content_hash3, uintptr_t content_hash4);
 // IPI
 uintptr_t ipi_stop_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid);
 uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid);
