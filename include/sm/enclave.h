@@ -21,6 +21,12 @@
 #define ENCLAVE_MODE 1
 #define NORMAL_MODE 0
 
+//FIXME: need to determine the suitable threshold depending on the performance.
+#define ENCLAVE_SELF_HASH_THRESHOLD  (RISCV_PGSIZE)
+
+//FIXME: entry point of self hash code, may need to change for some unknown reasons.
+#define ENCLAVE_SELF_HASH_ENTRY  (0x8000)
+
 #define SET_ENCLAVE_METADATA(point, enclave, create_args, struct_type, base) do { \
   enclave->entry_point = point; \
   enclave->ocall_func_id = ((struct_type)create_args)->ecall_arg0; \
@@ -109,6 +115,7 @@ struct enclave_t
   struct vm_area_struct* heap_vma;
   uintptr_t _heap_top;  //highest address of heap area
   struct vm_area_struct* mmap_vma;
+  struct vm_area_struct* sec_shm_vma;
 
   //pm_area_struct list
   struct pm_area_struct* pma_list;
@@ -142,6 +149,8 @@ struct enclave_t
   unsigned long* ocall_syscall_num;
   unsigned long* retval;
   unsigned long ocalling_shm_key;
+  unsigned long checkpoint_num;
+  unsigned long relay_page_offset;
   // enclave thread context
   // TODO: support multiple threads
   struct thread_state_t thread_context;
@@ -205,6 +214,8 @@ void free_enclave_memory(struct pm_area_struct *pma);
 
 // Called by host
 // Enclave-related operations
+uintptr_t fast_create_enclave(enclave_create_param_t create_args);
+uintptr_t fast_run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enclave_run_param);
 uintptr_t create_enclave(enclave_create_param_t create_args);
 uintptr_t attest_enclave(uintptr_t eid, uintptr_t report, uintptr_t nonce);
 uintptr_t run_enclave(uintptr_t* regs, unsigned int eid, enclave_run_param_t enclave_run_param);
@@ -254,11 +265,15 @@ uintptr_t do_yield(uintptr_t* regs);
 //TODO: flags in enclave shared memory not being used now.
 uintptr_t enclave_shmget(uintptr_t* regs, uintptr_t key, uintptr_t size, uintptr_t flags);
 uintptr_t shmget_after_resume(struct enclave_t *enclave, uintptr_t paddr, uintptr_t size);
+uintptr_t shmextend_after_resume(struct enclave_t *enclave, uintptr_t status);
 uintptr_t sm_shm_attatch(uintptr_t* regs, uintptr_t key);
 uintptr_t enclave_shmdetach(uintptr_t* regs, uintptr_t key);
 uintptr_t enclave_shmdestroy(uintptr_t* regs, uintptr_t key);
 uintptr_t sm_shm_stat(uintptr_t* regs, uintptr_t key, uintptr_t shm_desp_user);
 
+// the return control will jump back to real entry point of the enclave.
+uintptr_t sm_enclave_self_hash_ret(uintptr_t* regs, uintptr_t content_hash1, uintptr_t content_hash2, uintptr_t content_hash3, uintptr_t content_hash4);
+uintptr_t enclave_self_hash_ret(uintptr_t* regs, uintptr_t content_hash1, uintptr_t content_hash2, uintptr_t content_hash3, uintptr_t content_hash4);
 // IPI
 uintptr_t ipi_stop_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid);
 uintptr_t ipi_destroy_enclave(uintptr_t *regs, uintptr_t host_ptbr, int eid);
@@ -286,5 +301,13 @@ struct relay_page_entry_t
   unsigned long size;
 };
 
+// #define PROFILE_MONITOR
+
+static inline unsigned long rdcycle(void)
+{
+	unsigned long ret;
+  	asm volatile ("rdcycle %0" : "=r"(ret));
+    return ret;
+}
 
 #endif /* _ENCLAVE_H */

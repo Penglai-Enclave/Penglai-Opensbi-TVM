@@ -25,7 +25,8 @@ struct sbi_shm_infop
     uintptr_t shm_refcount;
     // spinlock_t sbi_shm_enclaves_lock;
     // struct sbi_shm_enclaves shared_enclaves; // linked enclave ids of enclaves that share this memory region.
-    struct pm_area_struct pma;
+    uintptr_t paddr;
+    uintptr_t size;
     sbi_shm_meta_state state;
     unsigned int last_free_meta_index;
     int need_destroy;
@@ -35,7 +36,7 @@ struct sbi_shm_metadata
 {
     uintptr_t eid;
     struct vm_area_struct vma;
-    char padding[24];
+    struct pm_area_struct pma;
 };
 
 struct sbi_shm_des{
