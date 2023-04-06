@@ -29,7 +29,7 @@ int enclave_shm_init()
 	global_shm_metadata_head = init_mem_link(DEFAULT_SHM_META_REGION_SIZE, sizeof(struct sbi_shm_infop));
 	if(!global_shm_metadata_head)
 	{
-		sbi_bug("M mode: enclave shared memory module init failed, maybe lacking of memory\n");
+		sbi_printf("M mode: enclave shared memory module init failed, maybe lacking of memory\n");
 		return -1;
 	}
 	global_shm_metadata_tail = global_shm_metadata_head;
@@ -76,7 +76,7 @@ static struct sbi_shm_metadata* get_free_shm_meta(struct sbi_shm_infop* shm)
 	{
 		return NULL;
 	}
-	meta = (struct sbi_shm_metadata *)(shm->pma.paddr) + shm->last_free_meta_index;
+	meta = (struct sbi_shm_metadata *)(shm->paddr) + shm->last_free_meta_index;
 	shm->last_free_meta_index += 1;
 	return meta;
 }
@@ -84,7 +84,11 @@ static struct sbi_shm_metadata* get_free_shm_meta(struct sbi_shm_infop* shm)
 static void free_shm_meta(struct sbi_shm_infop* shm, struct sbi_shm_metadata* meta)
 {
 	shm->last_free_meta_index--;
-	sbi_memcpy(meta, (struct sbi_shm_metadata*)shm->pma.paddr + shm->last_free_meta_index, sizeof(struct sbi_shm_metadata));
+	if(shm->last_free_meta_index == 0){
+		meta->eid = -1UL;
+	}else{
+		sbi_memcpy(meta, (struct sbi_shm_metadata*)shm->paddr + shm->last_free_meta_index, sizeof(struct sbi_shm_metadata));
+	}
 }
 
 static void free_shm_info(struct sbi_shm_infop* shm)
@@ -124,18 +128,19 @@ static void free_shm_info(struct sbi_shm_infop* shm)
 
 static struct sbi_shm_metadata* get_shm_meta(struct sbi_shm_infop* shm, int eid)
 {
-	struct sbi_shm_metadata * meta = (struct sbi_shm_metadata *)shm->pma.paddr;
+	struct sbi_shm_metadata * meta = (struct sbi_shm_metadata *)shm->paddr;
 	int i = 0;
 	struct sbi_shm_metadata * retval = NULL;
-	for(i = 0; i < RISCV_PGSIZE/ sizeof(struct sbi_shm_metadata); ++i)
+	for(i = 0; i < RISCV_PGSIZE/ sizeof(struct sbi_shm_metadata); ++i, ++meta)
 	{
-		if(meta->eid == -1)
+		if(meta->eid == -1UL)
 		{
 			break;
 		}
 		if(meta->eid == eid)
 		{
 			retval = meta;
+			break;
 		}
 	}
 	return retval;
@@ -170,11 +175,13 @@ uintptr_t enclave_shmget(uintptr_t *regs, uintptr_t shm_key, uintptr_t size,
 	}
 	if(!shm_init)
 	{
-		if(enclave_shm_init() != 0)
+		if(enclave_shm_init() != 0) //need extend memory
 		{
+		   copy_dword_to_host((uintptr_t*)enclave->ocall_func_id, OCALL_SHM_EXTEND_MEMORY);
+		   enclave->state = OCALLING;
+		   swap_from_enclave_to_host(regs, enclave);
 		   release_enclave_metadata_lock();
-		   sbi_printf("[opensbi] shared memory module init failed\n");
-           return -1UL;
+           return ENCLAVE_OCALL;
 		}
 		shm_init = 1;
 	}
@@ -210,7 +217,7 @@ uintptr_t enclave_shmget(uintptr_t *regs, uintptr_t shm_key, uintptr_t size,
 	shm->state = SHM_META_VALID;
 	shm->last_free_meta_index = 0;
 	shm->need_destroy = 0;
-	shm->pma.paddr = 0;
+	shm->paddr = 0;
 	shm->shm_key = shm_key;
 	shm->shm_refcount = 0;
 	shm->shm_flags	  = flags;
@@ -222,6 +229,12 @@ uintptr_t enclave_shmget(uintptr_t *regs, uintptr_t shm_key, uintptr_t size,
 	retval	       = ENCLAVE_OCALL;
 	release_enclave_metadata_lock();
 	return retval;
+}
+
+
+uintptr_t shmextend_after_resume(struct enclave_t *enclave, uintptr_t status)
+{
+	return -1UL;
 }
 
 //shmget_after_resume with enclave_metadata_lock hold
@@ -241,7 +254,7 @@ uintptr_t shmget_after_resume(struct enclave_t *enclave, uintptr_t paddr,
 	unsigned long i		      = 0;
 	for (i = 0; i < RISCV_PGSIZE / sizeof(struct sbi_shm_metadata); ++i) 
 	{
-		meta->eid = -1;
+		meta->eid = -1UL;
 		meta++;
 	}
 	meta = (struct sbi_shm_metadata *)(paddr);
@@ -251,23 +264,26 @@ uintptr_t shmget_after_resume(struct enclave_t *enclave, uintptr_t paddr,
 		sbi_bug("M mode: shm_get_after resume cannot find metadata\n");
 		return -1UL;
 	}
-	shm->pma.paddr	   = paddr;
-	shm->pma.size	   = size;
-	shm->pma.pm_next   = NULL;
+	shm->paddr 		   = paddr;
+	shm->size          = size;
 	shm->last_free_meta_index = 1;
 	meta->eid	   = enclave->eid;
-	meta->vma.va_start = ENCLAVE_DEFAULT_MMAP_BASE - (size - RISCV_PGSIZE);
+	meta->vma.va_start = ENCLAVE_DEFAULT_SEC_SHM_BASE - (size - RISCV_PGSIZE);
 	meta->vma.va_end   = meta->vma.va_start + size - RISCV_PGSIZE;
 	meta->vma.vm_next  = NULL;
-	meta->vma.pma	   = &(shm->pma);
-	if (insert_vma(&(enclave->mmap_vma), &(meta->vma),ENCLAVE_DEFAULT_MMAP_BASE) < 0) 
+	meta->pma.paddr	= paddr;
+	meta->pma.size	= size;
+	meta->pma.pm_next = NULL;
+	meta->vma.pma	   = &(meta->pma);
+	sbi_memset((void*)(paddr+RISCV_PGSIZE), 0, RISCV_PGSIZE);
+	if (insert_vma(&(enclave->sec_shm_vma), &(meta->vma),ENCLAVE_DEFAULT_SEC_SHM_BASE) < 0) 
 	{
-		meta->vma.va_end   = enclave->mmap_vma->va_start;
+		meta->vma.va_end   = enclave->sec_shm_vma->va_start;
 		meta->vma.va_start = meta->vma.va_end - (size - RISCV_PGSIZE);
-		meta->vma.vm_next  = enclave->mmap_vma;
-		enclave->mmap_vma  = &(meta->vma);
+		meta->vma.vm_next  = enclave->sec_shm_vma;
+		enclave->sec_shm_vma  = &(meta->vma);
 	}
-	insert_pma(&(enclave->pma_list), &(shm->pma));
+	insert_pma(&(enclave->pma_list), &(meta->pma));
 	mmap((uintptr_t *)(enclave->root_page_table), &(enclave->free_pages),
 	     meta->vma.va_start, paddr + RISCV_PGSIZE, size - RISCV_PGSIZE);
 	shm->shm_refcount += 1;
@@ -293,7 +309,7 @@ uintptr_t sm_shm_attatch(uintptr_t *regs, uintptr_t shm_key)
 	}
 	acquire_enclave_metadata_lock();
 	shm = get_shm_info(shm_key);
-	if(shm == NULL || shm->need_destroy || shm->pma.paddr == 0)
+	if(shm == NULL || shm->need_destroy || shm->paddr == 0)
 	{
 		release_enclave_metadata_lock();
 		return 0;
@@ -310,23 +326,27 @@ uintptr_t sm_shm_attatch(uintptr_t *regs, uintptr_t shm_key)
 		release_enclave_metadata_lock(); // exceed the limit number of shared enclaves.
 		return 0;
 	}
-	size = shm->pma.size;
+	size = shm->size;
 	shm->shm_refcount ++;
 	meta->eid = eid;
-	meta->vma.va_start = ENCLAVE_DEFAULT_MMAP_BASE - (size - RISCV_PGSIZE);
+	meta->vma.va_start = ENCLAVE_DEFAULT_SEC_SHM_BASE - (size - RISCV_PGSIZE);
 	meta->vma.va_end = meta->vma.va_start + size - RISCV_PGSIZE;
 	meta->vma.vm_next = NULL;
-	meta->vma.pma = &(shm->pma);
+	meta->pma.paddr = shm->paddr;
+	meta->pma.size  = shm->size;
+	meta->pma.pm_next = NULL;
+	meta->vma.pma = &(meta->pma);
 	enclave = __get_enclave(eid);
-	if(insert_vma(&(enclave->mmap_vma), &(meta->vma), ENCLAVE_DEFAULT_MMAP_BASE) < 0)
+	if(insert_vma(&(enclave->sec_shm_vma), &(meta->vma), ENCLAVE_DEFAULT_SEC_SHM_BASE) < 0)
 	{
-		meta->vma.va_end = enclave->mmap_vma->va_start;
+		meta->vma.va_end = enclave->sec_shm_vma->va_start;
 		meta->vma.va_start = meta->vma.va_end - (size - RISCV_PGSIZE);
-		meta->vma.vm_next = enclave->mmap_vma;
-		enclave->mmap_vma = &(meta->vma);
+		meta->vma.vm_next = enclave->sec_shm_vma;
+		enclave->sec_shm_vma = &(meta->vma);
 	}
+	insert_pma(&(enclave->pma_list), &(meta->pma));
 	mmap((uintptr_t *)(enclave->root_page_table), &(enclave->free_pages), meta->vma.va_start,
-			shm->pma.paddr + RISCV_PGSIZE, size - RISCV_PGSIZE);
+			shm->paddr + RISCV_PGSIZE, size - RISCV_PGSIZE);
 	retval = meta->vma.va_start;
 	release_enclave_metadata_lock();
 	return retval;
@@ -352,12 +372,12 @@ uintptr_t enclave_shmdetach(uintptr_t *regs, uintptr_t shm_key)
 	}
 	acquire_enclave_metadata_lock();
 	shm = get_shm_info(shm_key);
-	if(shm == NULL || shm->pma.paddr == 0)
+	if(shm == NULL || shm->paddr == 0)
 	{
 		release_enclave_metadata_lock();
 		return -1UL;
 	}
-	meta = (struct sbi_shm_metadata *)(shm->pma.paddr);
+	meta = (struct sbi_shm_metadata *)(shm->paddr);
 	meta = get_shm_meta(shm, eid);
 	if(meta == NULL)
 	{
@@ -367,7 +387,7 @@ uintptr_t enclave_shmdetach(uintptr_t *regs, uintptr_t shm_key)
 	enclave = __get_enclave(eid);
 	vma = &(meta->vma);
 	pma = vma->pma;
-	delete_vma(&(enclave->mmap_vma), vma);
+	delete_vma(&(enclave->sec_shm_vma), vma);
 	delete_pma(&(enclave->pma_list), pma);
 	vma->vm_next = NULL;
 	pma->pm_next = NULL;
@@ -393,6 +413,7 @@ uintptr_t enclave_shmdetach(uintptr_t *regs, uintptr_t shm_key)
 uintptr_t enclave_shmdestroy(uintptr_t *regs, uintptr_t shm_key)
 {
 	struct sbi_shm_infop *shm = NULL;
+	struct pm_area_struct pma;
 	struct enclave_t *enclave = NULL;
 	int eid = get_curr_enclave_id();
 	if(check_in_enclave_world() < 0)
@@ -405,22 +426,25 @@ uintptr_t enclave_shmdestroy(uintptr_t *regs, uintptr_t shm_key)
 	}
 	acquire_enclave_metadata_lock();
 	shm = get_shm_info(shm_key);
-	if(shm == NULL)
+	if(shm == NULL) //already destroyed.
 	{
 		release_enclave_metadata_lock();
-		return -1UL;
+		return 0;
 	}
 	shm->need_destroy = 1;
 	enclave = __get_enclave(eid);
 	if(shm->shm_refcount == 0)
 	{
+		pma.paddr = shm->paddr;
+		pma.size = shm->size;
+		pma.pm_next = NULL;
 		free_shm_info(shm);
 		copy_dword_to_host((uintptr_t *)enclave->ocall_func_id, OCALL_UNMAP);
-		copy_dword_to_host((uintptr_t *)enclave->ocall_arg0, shm->pma.paddr);
-		copy_dword_to_host((uintptr_t*)enclave->ocall_arg1, shm->pma.size);
+		copy_dword_to_host((uintptr_t *)enclave->ocall_arg0, shm->paddr);
+		copy_dword_to_host((uintptr_t*)enclave->ocall_arg1, shm->size);
 		swap_from_enclave_to_host(regs, enclave);
 		enclave->state = OCALLING;
-		free_enclave_memory(&(shm->pma));
+		free_enclave_memory(&(pma));
 		release_enclave_metadata_lock();
 		return ENCLAVE_OCALL;
 	}
@@ -445,14 +469,14 @@ uintptr_t sm_shm_stat(uintptr_t *regs, uintptr_t shm_key, uintptr_t shm_desp_use
 	acquire_enclave_metadata_lock();
 	enclave = __get_enclave(eid);
 	shm = get_shm_info(shm_key);
-	if(shm == NULL || shm->pma.paddr == 0)
+	if(shm == NULL || shm->paddr == 0)
 	{
 		release_enclave_metadata_lock();
 		return -1UL;
 	}
 	des_pa = (struct sbi_shm_des*)va_to_pa((uintptr_t*)(enclave->root_page_table), (void*)shm_desp_user);
 	des_pa->ref_count = shm->shm_refcount;
-	des_pa->shm_size = shm->pma.size;
+	des_pa->shm_size = shm->size - RISCV_PGSIZE;
 	release_enclave_metadata_lock();
 	return 0;
 }

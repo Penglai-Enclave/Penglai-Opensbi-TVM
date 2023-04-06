@@ -93,6 +93,7 @@
 #define OCALL_SHM_GET                9
 #define OCALL_SHM_DETACH             10
 #define OCALL_SHM_DESTROY            11
+#define OCALL_SHM_EXTEND_MEMORY      12
 
 #define OCALL_GETRANDOM              8
 

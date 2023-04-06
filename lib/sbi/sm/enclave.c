@@ -1172,6 +1172,7 @@ void initilze_va_struct(struct pm_area_struct* pma, struct vm_area_struct* vma, 
   enclave->_heap_top = ENCLAVE_DEFAULT_HEAP_BASE;
   enclave->heap_vma = NULL;
   enclave->mmap_vma = NULL;
+  enclave->sec_shm_vma = NULL;
 }
 
 /**************************************************************/
@@ -2044,6 +2045,9 @@ uintptr_t resume_from_ocall(uintptr_t* regs, unsigned int eid)
       break;
     case OCALL_SHM_GET:
       retval = shmget_after_resume(enclave, regs[13], regs[14]);
+      break;
+    case OCALL_SHM_EXTEND_MEMORY:
+      retval = shmextend_after_resume(enclave,regs[13]);
       break;
     default:
       retval = 0;
